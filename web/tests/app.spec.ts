@@ -112,12 +112,12 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   }
   await page.getByRole("tab", { name: "Extensions" }).click();
   await expect(
-    page.getByRole("heading", { name: "docs", exact: true }),
+    page.locator(".extension-row strong").getByText("docs", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "review", exact: true }),
+    page.locator(".extension-row strong").getByText("review", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "Instructions" }).click();
+  await page.getByRole("tab", { name: "Files" }).click();
   await page
     .locator(".file-row")
     .filter({ hasText: ".codex/AGENTS.md" })
@@ -177,7 +177,7 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await page.getByRole("button", { name: "Close editor" }).click();
   file(".codex/skills/check-work/notes.md", "Extra notes\n");
   await page
-    .locator(".extension-card")
+    .locator(".extension-row")
     .filter({ hasText: "check-work" })
     .click();
   let question = "";
@@ -211,7 +211,7 @@ test("undo removes a file created by the last save, even after a reload", async 
 }) => {
   await page.goto(link);
   await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
-  await page.getByRole("tab", { name: "Instructions" }).click();
+  await page.getByRole("tab", { name: "Files" }).click();
   const row = page.locator(".file-row").filter({ hasText: ".grok/AGENTS.md" });
   await row.click();
   await page.locator(".cm-content").fill("# Grok notes\n");
@@ -220,7 +220,7 @@ test("undo removes a file created by the last save, even after a reload", async 
   await expect(page.getByRole("status")).toContainText("File created.");
   await page.reload();
   await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
-  await page.getByRole("tab", { name: "Instructions" }).click();
+  await page.getByRole("tab", { name: "Files" }).click();
   await row.click();
   await page.getByRole("button", { name: "Undo last save" }).click();
   await expect(page.getByText("The file will be removed")).toBeVisible();
@@ -233,7 +233,7 @@ test("JSON settings changed by another program are merged on save", async ({
 }) => {
   await page.goto(link);
   await page.locator(".agent-nav").filter({ hasText: "Claude Code" }).click();
-  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("tab", { name: "Files" }).click();
   await page
     .locator(".file-row")
     .filter({ hasText: ".claude/settings.json" })
@@ -260,7 +260,7 @@ test("files reached through a linked folder can be edited", async ({
   symlinkSync(join(home, "dotfiles/grok"), join(home, ".grok"));
   await page.goto(link);
   await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
-  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("tab", { name: "Files" }).click();
   await page
     .locator(".file-row")
     .filter({ hasText: ".grok/config.toml" })
@@ -323,7 +323,7 @@ test("invalid configuration and stale revisions cannot overwrite files", async (
   page,
 }) => {
   await page.goto(link);
-  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("tab", { name: "Files" }).click();
   await page.locator(".file-row").filter({ hasText: "config.toml" }).click();
   // TOML gets syntax colouring.
   await expect(page.locator(".cm-content span").first()).toBeVisible();

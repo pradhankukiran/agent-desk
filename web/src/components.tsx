@@ -7,24 +7,39 @@ import type { FileItem } from "./types";
 
 export function FileRow({
   file: f,
+  path,
+  selected,
   onOpen,
 }: {
   file: FileItem;
+  path: string;
+  selected: boolean;
   onOpen: () => void;
 }) {
   return (
-    <button className="file-row" onClick={onOpen}>
-      <span className="file-info">
-        <strong>{f.name}</strong>
-        <small title={f.path}>{f.path}</small>
+    <button
+      className={"row file-row" + (selected ? " selected" : "")}
+      onClick={onOpen}
+    >
+      <span className="row-main">
+        <strong className={f.exists ? "" : "missing"}>{f.name}</strong>
+        <small title={f.path}>{path}</small>
       </span>
-      <span className="scope-chip">{f.scope}</span>
-      <span className={"badge " + (f.exists ? "present" : "missing")}>
-        {f.exists ? "Present" : "Not created"}
+      <span className="row-meta">{f.scope}</span>
+      <span className="row-meta">
+        {f.exists ? formatSize(f.size) : "not created"}
       </span>
+      <span className="row-meta">{f.editable ? "" : "read-only"}</span>
     </button>
   );
 }
+
+function formatSize(n: number) {
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1024 / 1024).toFixed(1) + " MB";
+}
+
 export function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="empty">

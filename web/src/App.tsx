@@ -9,20 +9,6 @@ import type { Catalog, OpenFile, Session, Transcript } from "./types";
 import { api, query } from "./api";
 import { FileRow, Empty, Changes, MessageText } from "./components";
 
-const glyphs: Record<string, string> = {
-  codex: "C",
-  claude: "✳",
-  opencode: "O",
-  grok: "G",
-  agy: "A",
-};
-const accents: Record<string, string> = {
-  codex: "#347d73",
-  claude: "#c67550",
-  opencode: "#526c9a",
-  grok: "#787087",
-  agy: "#558769",
-};
 // languageFor picks syntax colouring from a file name.
 function languageFor(name: string) {
   const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
@@ -41,12 +27,21 @@ const defaultAgents = [
   { id: "grok", name: "Grok" },
   { id: "agy", name: "Agy" },
 ];
-const tabs = ["Overview", "Extensions", "Instructions", "Settings", "Sessions"];
+const tabs = ["Files", "Extensions", "Sessions"];
+const kindNames: Record<string, string> = {
+  mcp: "MCP server",
+  skill: "Skill",
+  plugin: "Plugin",
+  hook: "Hook",
+  agent: "Agent",
+  command: "Command",
+  rule: "Rule",
+};
 export default function App() {
   const [catalog, setCatalog] = useState<Catalog>();
   const [agentID, setAgentID] = useState("codex");
   const [project, setProject] = useState("");
-  const [tab, setTab] = useState("Overview");
+  const [tab, setTab] = useState("Files");
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState("all");
   const [error, setError] = useState("");
@@ -339,63 +334,69 @@ export default function App() {
         (kind === "all" || x.kind === kind) &&
         matches(x.name + " " + x.source + " " + x.scope),
     ) || [];
-  const files =
-    agent?.files.filter(
-      (f) =>
-        (tab === "Instructions"
-          ? f.kind === "instruction"
-          : f.kind === "config") && matches(f.path),
-    ) || [];
+  const fileGroups = [
+    { title: "Settings", kind: "config" },
+    { title: "Instructions", kind: "instruction" },
+  ].map((g) => ({
+    ...g,
+    files:
+      agent?.files.filter((f) => f.kind === g.kind && matches(f.path)) || [],
+  }));
+  const fileCount =
+    agent?.files.filter((f) => f.kind === "config" || f.kind === "instruction")
+      .length || 0;
+  const tilde = (p: string) =>
+    catalog?.home && p.startsWith(catalog.home)
+      ? "~" + p.slice(catalog.home.length)
+      : p;
   const visibleSessions = sessions.filter((s) =>
     matches(s.title + " " + s.project + " " + s.id),
   );
-  const count = (k: string) =>
-    agent?.extensions.filter((x) => x.kind === k).length || 0;
   return (
-    <div className="app">
+    <div className={"app" + (opened || fileLoading ? " with-panel" : "")}>
       <aside className="sidebar">
         <div className="brand">agent desk</div>
         <div className="nav-caption">
           Agents <span>{navAgents.length}</span>
         </div>
         <nav>
-          {navAgents.map((a) => (
-            <button
-              key={a.id}
-              className={"agent-nav " + (a.id === agentID ? "selected" : "")}
-              onClick={() => navigate(a.id)}
-            >
-              <span className="agent-icon" style={{ color: accents[a.id] }}>
-                {glyphs[a.id]}
-              </span>
-              <span>{a.name}</span>
-              <span className="nav-dot" />
-            </button>
-          ))}
+          {navAgents.map((a) => {
+            const full = catalog?.agents.find((x) => x.id === a.id);
+            return (
+              <button
+                key={a.id}
+                className={"agent-nav" + (a.id === agentID ? " selected" : "")}
+                aria-current={a.id === agentID ? "page" : undefined}
+                onClick={() => navigate(a.id)}
+              >
+                <span
+                  className={"install-dot" + (full?.installed ? " on" : "")}
+                  title={full?.installed ? "Installed" : "Not found on PATH"}
+                />
+                <span className="agent-name">{a.name}</span>
+                {full && (
+                  <span className="agent-count" title="Extensions found">
+                    {full.extensions.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
       </aside>
       <main>
-        <div className="workspace">
-          <div className="page-heading">
-            <div>
-              <h1>
-                {agent?.name || "Agent Desk"}
-                <span className="status-tag">
-                  {agent?.installed ? "Installed" : "Not found"}
-                </span>
-              </h1>
-            </div>
-            <button
-              className="button secondary"
-              onClick={() => {
-                setReload((v) => v + 1);
-                setNotice("Reloaded from disk.");
-              }}
-            >
-              Reload
-            </button>
+        <header className="page-header">
+          <div>
+            <h1>{agent?.name || "Agent Desk"}</h1>
+            <p className="page-meta">
+              {!agent
+                ? "Loading…"
+                : agent.installed
+                  ? agent.executable
+                  : "Not found on PATH"}
+            </p>
           </div>
-          <div className="scopebar">
+          <div className="header-actions">
             <label className="scope-label" htmlFor="project-scope">
               Project
             </label>
@@ -417,39 +418,59 @@ export default function App() {
                 ]),
               ).map((p) => (
                 <option key={p} value={p}>
-                  {p}
+                  {tilde(p)}
                 </option>
               ))}
               <option value="__custom">Other folder…</option>
             </select>
+            <button
+              className="button secondary"
+              onClick={() => {
+                setReload((v) => v + 1);
+                setNotice("Reloaded from disk.");
+              }}
+            >
+              Reload
+            </button>
           </div>
-          <div className="tabs" role="tablist">
-            {tabs.map((t) => (
-              <button
-                role="tab"
-                aria-selected={t === tab}
-                key={t}
-                className={t === tab ? "active" : ""}
-                onClick={() => {
-                  setTab(t);
-                  setSearch("");
-                  setKind("all");
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          {error && (
+        </header>
+        <div className="tabs" role="tablist">
+          {tabs.map((t) => (
+            <button
+              role="tab"
+              aria-selected={t === tab}
+              key={t}
+              className={t === tab ? "active" : ""}
+              onClick={() => {
+                setTab(t);
+                setSearch("");
+                setKind("all");
+              }}
+            >
+              {t}
+              {t !== "Sessions" && agent && (
+                <span className="tab-count">
+                  {t === "Files" ? fileCount : agent.extensions.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="content">
+          {error && !opened && (
             <div role="alert" className="alert error">
               {error}
-              <button onClick={() => setError("")}>×</button>
+              <button aria-label="Dismiss" onClick={() => setError("")}>
+                ×
+              </button>
             </div>
           )}
           {notice && (
             <div role="status" className="alert success">
               {notice}
-              <button onClick={() => setNotice("")}>×</button>
+              <button aria-label="Dismiss" onClick={() => setNotice("")}>
+                ×
+              </button>
             </div>
           )}
           {agent?.warnings.map((w, i) => (
@@ -457,187 +478,113 @@ export default function App() {
               {w}
             </div>
           ))}
-          {tab === "Overview" && agent && (
-            <>
-              <div className="stats">
-                {[
-                  ["mcp", "MCP servers"],
-                  ["skill", "Skills"],
-                  ["plugin", "Plugins"],
-                ].map(([k, label]) => (
-                  <button
-                    className="stat"
-                    key={k}
-                    onClick={() => {
-                      setTab("Extensions");
-                      setKind(k);
-                    }}
-                  >
-                    <div>{label}</div>
-                    <strong>{count(k)}</strong>
-                  </button>
-                ))}
-              </div>
-              <div className="overview-grid">
-                <section className="panel">
-                  <div className="panel-heading">
-                    <h2>Configuration files</h2>
-                  </div>
-                  {agent.files
-                    .filter((f) => f.kind === "config")
-                    .map((f) => (
+          <div className="toolbar">
+            <input
+              className="search"
+              type="search"
+              aria-label="Search"
+              placeholder={
+                tab === "Sessions"
+                  ? "Search titles and folders"
+                  : tab === "Files"
+                    ? "Search file paths"
+                    : "Search names and paths"
+              }
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {tab === "Extensions" && (
+              <>
+                <select
+                  aria-label="Extension type"
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value)}
+                >
+                  <option value="all">All types</option>
+                  {Object.entries(kindNames).map(([k, name]) => (
+                    <option key={k} value={k}>
+                      {name}s
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="button primary"
+                  onClick={() => {
+                    setSkillName("");
+                    setSkillDescription("");
+                    setNewSkill(true);
+                  }}
+                >
+                  New skill
+                </button>
+              </>
+            )}
+          </div>
+          {tab === "Files" &&
+            fileGroups.map((g) => (
+              <section className="list-section" key={g.kind}>
+                <h2>
+                  {g.title} <span>{g.files.length}</span>
+                </h2>
+                {g.files.length === 0 ? (
+                  <Empty title="No matching files" text="" />
+                ) : (
+                  <div className="list">
+                    {g.files.map((f) => (
                       <FileRow
                         key={f.id}
                         file={f}
+                        path={tilde(f.path)}
+                        selected={opened?.file.id === f.id}
                         onOpen={() => openFile(f.id)}
                       />
                     ))}
-                </section>
-                <section className="panel">
-                  <div className="panel-heading">
-                    <h2>Details</h2>
                   </div>
-                  <dl>
-                    <dt>Executable</dt>
-                    <dd>{agent.executable || "Not found on PATH"}</dd>
-                    <dt>Conversation history</dt>
-                    <dd>
-                      {agent.id === "agy"
-                        ? "Local search index excerpts"
-                        : "Local conversation history"}
-                    </dd>
-                  </dl>
-                </section>
-              </div>
-            </>
-          )}
-          {tab !== "Overview" && (
-            <div className="toolbar">
-              <div className="search">
-                <span>⌕</span>
-                <input
-                  aria-label="Search"
-                  placeholder={
-                    tab === "Sessions"
-                      ? "Search titles, projects, or session IDs…"
-                      : "Search names or file paths…"
-                  }
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              {tab === "Extensions" && (
-                <>
-                  <select
-                    aria-label="Extension type"
-                    value={kind}
-                    onChange={(e) => setKind(e.target.value)}
-                  >
-                    {[
-                      "all",
-                      "mcp",
-                      "skill",
-                      "plugin",
-                      "hook",
-                      "agent",
-                      "command",
-                      "rule",
-                    ].map((k) => (
-                      <option key={k} value={k}>
-                        {k === "all"
-                          ? "All types"
-                          : k === "mcp"
-                            ? "MCP servers"
-                            : k.charAt(0).toUpperCase() + k.slice(1) + "s"}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="button primary"
-                    onClick={() => {
-                      setSkillName("");
-                      setSkillDescription("");
-                      setNewSkill(true);
-                    }}
-                  >
-                    + New skill
-                  </button>
-                </>
-              )}
-            </div>
+                )}
+              </section>
+            ))}
+          {tab === "Files" && (
+            <p className="footnote">
+              Missing files can be created by opening them. Files are listed by
+              location, not by the order an agent loads them.
+            </p>
           )}
           {tab === "Extensions" && (
             <>
-              <div className="section-caption">
-                {ext.length} {ext.length === 1 ? "item" : "items"}
-              </div>
-              <div className="extension-grid">
-                {ext.map((x, i) => (
-                  <button
-                    className="extension-card"
-                    key={x.fileId + x.name + i}
-                    onClick={() => openFile(x.fileId)}
-                  >
-                    <div className="extension-top">
-                      <span className={"kind-icon " + x.kind}>
-                        {x.kind === "mcp"
-                          ? "⌘"
-                          : x.kind === "skill"
-                            ? "✧"
-                            : "▧"}
-                      </span>
-                      <span className={"badge " + x.status}>{x.status}</span>
-                    </div>
-                    <h3>{x.name}</h3>
-                    <div className="extension-meta">
-                      {x.kind === "mcp" ? "MCP server" : x.kind}
-                      <span>·</span>
-                      {x.scope}
-                    </div>
-                    <p title={x.source}>
-                      {x.source.replace(catalog?.home || "", "~")}
-                    </p>
-                  </button>
-                ))}
-              </div>
-              {ext.length === 0 && (
+              {ext.length === 0 ? (
                 <Empty
                   title="No matching extensions"
-                  text="Nothing was found in the supported configuration locations. You can add entries through Settings."
+                  text="Nothing was found in the supported locations."
                 />
+              ) : (
+                <div className="list">
+                  {ext.map((x, i) => (
+                    <button
+                      className={
+                        "row extension-row" +
+                        (opened?.file.id === x.fileId ? " selected" : "")
+                      }
+                      key={x.fileId + x.name + i}
+                      onClick={() => openFile(x.fileId)}
+                    >
+                      <span className="row-main">
+                        <strong>{x.name}</strong>
+                        <small title={x.source}>{tilde(x.source)}</small>
+                      </span>
+                      <span className="row-meta">{kindNames[x.kind]}</span>
+                      <span className="row-meta">{x.scope}</span>
+                      <span className={"row-meta status-" + x.status}>
+                        {x.status}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               )}
-              <div className="footnote">
-                Inventory covers known local paths. Runtime overrides, remote
-                catalogs, and extension activation may differ. Plugin
-                installation is not available in this version.
-              </div>
+              <p className="footnote">
+                “Present” means found on disk; “configured” means listed in a
+                settings file. Neither confirms the agent has loaded it.
+              </p>
             </>
-          )}
-          {(tab === "Instructions" || tab === "Settings") && (
-            <section className="panel">
-              <div className="panel-heading">
-                <h2>
-                  {tab === "Instructions"
-                    ? "Instruction files"
-                    : "Configuration files"}
-                </h2>
-                <span className="subtle">{files.length}</span>
-              </div>
-              {files.map((f) => (
-                <FileRow key={f.id} file={f} onOpen={() => openFile(f.id)} />
-              ))}
-              {files.length === 0 && (
-                <Empty
-                  title="No matching files"
-                  text="Try a different search or project."
-                />
-              )}
-              <div className="panel-note">
-                {tab === "Settings"
-                  ? "Edit the original configuration to add or change MCP servers, plugins, hooks, and agent preferences. JSON and TOML are validated before saving."
-                  : "Files marked “Not created” can be created here. Files are shown by location; this list does not imply instruction precedence."}
-              </div>
-            </section>
           )}
           {tab === "Sessions" && (
             <>
@@ -647,11 +594,7 @@ export default function App() {
                 </div>
               ))}
               <div className="sessions-layout">
-                <section className="panel session-list">
-                  <div className="panel-heading">
-                    <h2>Conversations</h2>
-                    <span className="subtle">{visibleSessions.length}</span>
-                  </div>
+                <section className="session-list">
                   {sessionBusy ? (
                     <Empty title="Loading…" text="" />
                   ) : visibleSessions.length === 0 ? (
@@ -663,8 +606,8 @@ export default function App() {
                     visibleSessions.map((s) => (
                       <button
                         className={
-                          "session-row " +
-                          (s.id === session?.id ? "selected" : "")
+                          "session-row" +
+                          (s.id === session?.id ? " selected" : "")
                         }
                         key={s.id}
                         onClick={() => {
@@ -674,18 +617,18 @@ export default function App() {
                         }}
                       >
                         <strong>{s.title}</strong>
-                        <span>{s.project || "Project not recorded"}</span>
                         <small>
-                          {new Date(s.updated).toLocaleString()}{" "}
-                          {s.format === "indexed excerpts"
-                            ? "· Indexed excerpts"
-                            : ""}
+                          {s.project ? tilde(s.project) : "Folder not recorded"}
+                        </small>
+                        <small>
+                          {new Date(s.updated).toLocaleString()}
+                          {s.format === "indexed excerpts" ? " · Excerpts" : ""}
                         </small>
                       </button>
                     ))
                   )}
                 </section>
-                <section className="panel transcript">
+                <section className="transcript">
                   {!session ? (
                     <Empty
                       title="Pick a conversation"
@@ -696,22 +639,20 @@ export default function App() {
                       <div className="transcript-heading">
                         <h2>{session.title}</h2>
                         <input
+                          type="search"
                           aria-label="Find in conversation"
-                          placeholder="Filter messages…"
+                          placeholder="Filter messages"
                           value={transcriptSearch}
                           onChange={(e) => setTranscriptSearch(e.target.value)}
                         />
                       </div>
                       {!transcript ? (
-                        <Empty
-                          title="Loading conversation…"
-                          text="Reading stored messages."
-                        />
+                        <Empty title="Loading…" text="" />
                       ) : (
                         <>
-                          <div className="panel-note">
+                          <p className="footnote">
                             {transcript.note || "Stored conversation text."}
-                          </div>
+                          </p>
                           {transcript.messages.length === 0 &&
                             (transcriptQuery ? (
                               <Empty
@@ -721,12 +662,13 @@ export default function App() {
                             ) : (
                               <Empty
                                 title="No readable messages"
-                                text="This session has no text available in the supported storage format."
+                                text="This session has no text in a supported format."
                               />
                             ))}
                           {transcript.messages.map((m, i) => {
                             const copy = (
                               <button
+                                className="text-button"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   navigator.clipboard
@@ -757,7 +699,7 @@ export default function App() {
                             ) : (
                               <article className={"message " + m.role} key={i}>
                                 <div className="message-role">
-                                  {m.role}
+                                  <span>{m.role}</span>
                                   {copy}
                                 </div>
                                 <MessageText text={m.text} />
@@ -794,200 +736,197 @@ export default function App() {
         </div>
       </main>
       {(opened || fileLoading) && (
-        <div
-          className="overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) closeEditor();
-          }}
+        <section
+          className="editor-panel"
+          role="dialog"
+          aria-label="File editor"
         >
-          <section
-            className="editor-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="File editor"
-          >
-            <div className="dialog-heading">
-              <div>
-                <span className="eyebrow">{opened?.file.kind || "FILE"}</span>
-                <h2>
-                  {opened?.file.name || "Loading…"}
-                  {dirty && <span className="unsaved">Unsaved</span>}
-                </h2>
-              </div>
-              <button
-                className="close"
-                disabled={busy}
-                aria-label="Close editor"
-                onClick={closeEditor}
-              >
-                ×
-              </button>
-            </div>
-            {opened && (
-              <>
-                <div className="file-path">
-                  {opened.file.path}
+          <div className="panel-header">
+            <div>
+              <h2>
+                {opened?.file.name || "Loading…"}
+                {dirty && <span className="unsaved">Unsaved</span>}
+              </h2>
+              {opened && (
+                <p className="file-path" title={opened.file.path}>
+                  {tilde(opened.file.path)}
                   <span>
+                    {" · "}
                     {opened.file.scope} ·{" "}
                     {opened.file.editable ? "editable" : "read-only"}
                   </span>
+                </p>
+              )}
+            </div>
+            <button
+              className="close"
+              disabled={busy}
+              aria-label="Close editor"
+              onClick={closeEditor}
+            >
+              ×
+            </button>
+          </div>
+          {opened && (
+            <>
+              {error && (
+                <div role="alert" className="alert error">
+                  {error}
                 </div>
-                {error && (
-                  <div role="alert" className="alert error">
-                    {error}
+              )}
+              {opened.file.target && (
+                <p className="panel-note">
+                  This path is a link. Changes are saved to{" "}
+                  <code>{tilde(opened.file.target)}</code>, and the link stays
+                  in place.
+                </p>
+              )}
+              {!opened.file.editable && (
+                <p className="panel-note">
+                  This is a managed, bundled, or plugin file, or it links
+                  outside your home folder. It is available for viewing.
+                </p>
+              )}
+              {opened.file.name === ".claude.json" && (
+                <p className="panel-note">
+                  Claude’s state file also holds account details. Edit only the
+                  fields you intend to change.
+                </p>
+              )}
+              {undoReview && opened.undo ? (
+                opened.undo.removes ? (
+                  <div className="review-summary removal">
+                    <h3>After undo</h3>
+                    <span>
+                      The file will be removed, because the last save created
+                      it.
+                    </span>
                   </div>
-                )}
-                {opened.file.target && (
-                  <div className="panel-note">
-                    This path is a link. Changes are saved to{" "}
-                    <code>{opened.file.target}</code>, and the link stays in
-                    place.
-                  </div>
-                )}
-                {!opened.file.editable && (
-                  <div className="panel-note">
-                    This is a managed, bundled, or plugin file, or it links
-                    outside your home folder. It is available for viewing.
-                  </div>
-                )}
-                {opened.file.name === ".claude.json" && (
-                  <div className="panel-note">
-                    Claude’s state file includes account metadata alongside MCP
-                    settings. Edit only the fields you intend to change.
-                  </div>
-                )}
-                {undoReview && opened.undo ? (
-                  opened.undo.removes ? (
-                    <div className="review-summary removal">
-                      <h3>After undo</h3>
-                      <span>
-                        The file will be removed, because the last save created
-                        it.
-                      </span>
-                    </div>
-                  ) : (
-                    <Changes
-                      title="After undo"
-                      before={opened.content}
-                      after={opened.undo.content}
-                      language={languageFor(opened.file.name)}
-                    />
-                  )
-                ) : review ? (
+                ) : (
                   <Changes
-                    title={opened.file.exists ? "Changes to save" : "New file"}
+                    title="After undo"
                     before={opened.content}
-                    after={draft}
+                    after={opened.undo.content}
                     language={languageFor(opened.file.name)}
                   />
-                ) : (
-                  <div className="code-editor">
-                    <CodeMirror
-                      value={draft}
-                      height="100%"
-                      extensions={languageFor(opened.file.name)}
-                      editable={opened.file.editable && !busy}
-                      onChange={setDraft}
-                      basicSetup={{ lineNumbers: true, foldGutter: true }}
-                    />
-                  </div>
-                )}
-                <div className="editor-actions">
-                  <div>
-                    {opened.file.editable &&
-                      opened.file.exists &&
-                      ["skill", "instruction"].includes(opened.file.kind) && (
-                        <button
-                          className="button danger"
-                          disabled={busy}
-                          onClick={remove}
-                        >
-                          {opened.file.kind === "skill"
-                            ? "Remove skill"
-                            : "Remove file"}
-                        </button>
-                      )}
-                    {opened.undo && !review && !undoReview && (
+                )
+              ) : review ? (
+                <Changes
+                  title={opened.file.exists ? "Changes to save" : "New file"}
+                  before={opened.content}
+                  after={draft}
+                  language={languageFor(opened.file.name)}
+                />
+              ) : (
+                <div className="code-editor">
+                  <CodeMirror
+                    value={draft}
+                    height="100%"
+                    extensions={languageFor(opened.file.name)}
+                    editable={opened.file.editable && !busy}
+                    onChange={setDraft}
+                    basicSetup={{ lineNumbers: true, foldGutter: true }}
+                  />
+                </div>
+              )}
+              <div className="editor-actions">
+                <div>
+                  {opened.file.editable &&
+                    opened.file.exists &&
+                    ["skill", "instruction"].includes(opened.file.kind) && (
                       <button
-                        className="button secondary"
-                        disabled={busy || dirty}
-                        title={dirty ? "Save or discard your edits first" : ""}
-                        onClick={() => setUndoReview(true)}
+                        className="button danger"
+                        disabled={busy}
+                        onClick={remove}
                       >
-                        Undo last save
+                        {opened.file.kind === "skill"
+                          ? "Remove skill"
+                          : "Remove file"}
                       </button>
                     )}
-                  </div>
-                  <div>
-                    {undoReview && (
-                      <>
-                        <button
-                          className="button secondary"
-                          disabled={busy}
-                          onClick={() => setUndoReview(false)}
-                        >
-                          Back to editing
-                        </button>
-                        <button
-                          className="button primary"
-                          disabled={busy}
-                          onClick={undo}
-                        >
-                          {busy ? "Undoing…" : "Confirm undo"}
-                        </button>
-                      </>
-                    )}
-                    {review && (
+                  {opened.undo && !review && !undoReview && (
+                    <button
+                      className="button secondary"
+                      disabled={busy || dirty}
+                      title={dirty ? "Save or discard your edits first" : ""}
+                      onClick={() => setUndoReview(true)}
+                    >
+                      Undo last save
+                    </button>
+                  )}
+                </div>
+                <div>
+                  {undoReview && (
+                    <>
                       <button
                         className="button secondary"
                         disabled={busy}
-                        onClick={() => setReview(false)}
+                        onClick={() => setUndoReview(false)}
                       >
                         Back to editing
                       </button>
-                    )}
-                    {opened.file.editable && !undoReview && (
                       <button
                         className="button primary"
-                        disabled={!dirty || busy}
-                        onClick={() => (review ? save() : setReview(true))}
+                        disabled={busy}
+                        onClick={undo}
                       >
-                        {busy
-                          ? "Saving…"
-                          : review
-                            ? "Confirm save"
-                            : "Review changes"}
+                        {busy ? "Undoing…" : "Confirm undo"}
                       </button>
-                    )}
-                  </div>
+                    </>
+                  )}
+                  {review && (
+                    <button
+                      className="button secondary"
+                      disabled={busy}
+                      onClick={() => setReview(false)}
+                    >
+                      Back to editing
+                    </button>
+                  )}
+                  {opened.file.editable && !undoReview && (
+                    <button
+                      className="button primary"
+                      disabled={!dirty || busy}
+                      onClick={() => (review ? save() : setReview(true))}
+                    >
+                      {busy
+                        ? "Saving…"
+                        : review
+                          ? "Confirm save"
+                          : "Review changes"}
+                    </button>
+                  )}
                 </div>
-              </>
-            )}
-          </section>
-        </div>
+              </div>
+            </>
+          )}
+        </section>
       )}
       {newSkill && (
         <div className="overlay">
           <form
             className="small-dialog"
+            role="dialog"
+            aria-label="Create a skill"
             onSubmit={(e) => {
               e.preventDefault();
               createSkill();
             }}
           >
-            <div className="dialog-heading">
-              <h2>Create a skill</h2>
+            <div className="panel-header">
+              <h2>New skill</h2>
               <button
                 type="button"
                 className="close"
+                aria-label="Close"
                 onClick={() => setNewSkill(false)}
               >
                 ×
               </button>
             </div>
-            <p>
-              For {agent?.name} ·{" "}
-              {project ? "selected project" : "user configuration"}
+            <p className="panel-note">
+              For {agent?.name},{" "}
+              {project ? "in " + tilde(project) : "in your user settings"}.
             </p>
             {error && <div className="alert error">{error}</div>}
             <label>
@@ -1009,9 +948,12 @@ export default function App() {
                 onChange={(e) => setSkillDescription(e.target.value)}
               />
             </label>
-            <button className="button primary" disabled={busy}>
-              Create and edit
-            </button>
+            <div className="editor-actions">
+              <span />
+              <button className="button primary" disabled={busy}>
+                Create and edit
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -1019,6 +961,8 @@ export default function App() {
         <div className="overlay">
           <form
             className="small-dialog"
+            role="dialog"
+            aria-label="Choose a project"
             onSubmit={async (e) => {
               e.preventDefault();
               try {
@@ -1029,27 +973,31 @@ export default function App() {
               }
             }}
           >
-            <div className="dialog-heading">
+            <div className="panel-header">
               <h2>Choose a project</h2>
               <button
                 type="button"
                 className="close"
+                aria-label="Close"
                 onClick={() => setCustomProject(false)}
               >
                 ×
               </button>
             </div>
             <label>
-              Directory inside your home
+              Folder inside your home
               <input
                 required
-                placeholder="/home/you/projects/my-project"
+                placeholder="~/projects/my-project"
                 value={projectDraft}
                 onChange={(e) => setProjectDraft(e.target.value)}
               />
             </label>
             {error && <div className="alert error">{error}</div>}
-            <button className="button primary">Open project</button>
+            <div className="editor-actions">
+              <span />
+              <button className="button primary">Open project</button>
+            </div>
           </form>
         </div>
       )}
