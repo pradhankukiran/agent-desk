@@ -180,3 +180,47 @@ web/
 
 Go's standard HTTP library serves the API and compiled interface. CodeMirror supplies the browser editor. TOML, JSONC, and SQLite libraries handle the agents' storage formats.
 
+## Development
+
+### Build and check
+
+```sh
+make build
+make test
+```
+
+`make build` installs the locked frontend dependencies, type-checks and bundles the interface, and produces `bin/agent-desk`. `make test` builds the app, runs Go tests with the race detector, and runs `go vet`.
+
+The Go race detector requires a supported platform and a C compiler.
+
+The UI must be built before compiling or testing the Go entry point because the executable embeds `web/dist`. Generated assets, binaries, dependency directories, and browser-test output are excluded from Git.
+
+### Browser tests
+
+Install Playwright's Chromium once, then run the integration tests:
+
+```sh
+cd web
+npx playwright install chromium
+cd ..
+make test-e2e
+```
+
+Alternatively, point the tests at an existing Chromium-compatible executable:
+
+```sh
+CHROMIUM_PATH=/path/to/chromium make test-e2e
+```
+
+If `/usr/bin/google-chrome` exists, the test configuration uses it as a local fallback. Otherwise, Playwright uses its installed Chromium.
+
+The browser suite starts the compiled app against a temporary fixture home. It checks agent navigation, instruction editing, skill creation, transcript viewing, invalid configuration, conflicting edits, and a narrow viewport. It does not edit your real agent configuration.
+
+Backend tests cover configuration discovery, JSONL message parsing, both OpenCode database schemas, Agy excerpts, API access controls, read-only database access, backups, and path boundaries.
+
+### Contributing changes
+
+Keep agent-specific path and storage assumptions explicit. Add fixture-based coverage when changing a parser or write behavior. Use synthetic configuration and conversation data in tests; never commit personal session history or credentials.
+
+For compatibility reports, include the agent version, operating system, file format, and a minimal sanitized example. Remove tokens, private conversation text, and account metadata before sharing logs or configuration.
+
