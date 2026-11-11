@@ -22,15 +22,7 @@ func (s *Server) Catalog(project string) []Agent {
 				return
 			}
 			seen[path] = true
-			f := File{ID: fileID(path), Agent: sp.id, Name: filepath.Base(path), Path: path, Kind: kind, Scope: scope, Editable: editable}
-			if info, e := os.Stat(path); e == nil && !info.IsDir() {
-				f.Exists = true
-				f.Size = info.Size()
-			}
-			// Never edit a symlink through its alias, nor files outside the user's home.
-			if resolved, e := filepath.EvalSymlinks(path); e == nil && (!within(s.Home, resolved) || resolved != path) {
-				f.Editable = false
-			}
+			f := s.fileState(File{ID: fileID(path), Agent: sp.id, Name: filepath.Base(path), Path: path, Kind: kind, Scope: scope, Editable: editable})
 			a.Files = append(a.Files, f)
 			if f.Exists && (kind == "skill" || kind == "plugin" || kind == "agent" || kind == "command" || kind == "rule") {
 				name := strings.TrimSuffix(f.Name, filepath.Ext(f.Name))
@@ -205,16 +197,58 @@ func (s *Server) Catalog(project string) []Agent {
 		})
 		out = append(out, a)
 	}
+	index := map[string]File{}
+	for _, a := range out {
+		for _, f := range a.Files {
+			index[f.ID] = f
+		}
+	}
+	s.cacheMu.Lock()
+	if s.fileIndex == nil {
+		s.fileIndex = map[string]map[string]File{}
+	}
+	s.fileIndex[project] = index
+	s.scans++
+	s.cacheMu.Unlock()
 	return out
 }
 
+// fileState refreshes whether a listed file exists and may be edited.
+func (s *Server) fileState(f File) File {
+	f.Exists, f.Size = false, 0
+	if info, e := os.Stat(f.Path); e == nil && !info.IsDir() {
+		f.Exists = true
+		f.Size = info.Size()
+	}
+	// Never edit a symlink through its alias, nor files outside the user's home.
+	if resolved, e := filepath.EvalSymlinks(f.Path); e == nil && (!within(s.Home, resolved) || resolved != f.Path) {
+		f.Editable = false
+	}
+	return f
+}
+
+// lookup finds a catalog file by ID. It uses the files found by the last
+// catalog scan for the project and rescans only when the ID is unknown.
 func (s *Server) lookup(project, id string) (File, error) {
-	for _, a := range s.Catalog(project) {
-		for _, f := range a.Files {
-			if f.ID == id {
-				return f, nil
-			}
+	find := func() (File, bool) {
+		s.cacheMu.Lock()
+		defer s.cacheMu.Unlock()
+		f, ok := s.fileIndex[project][id]
+		return f, ok
+	}
+	f, ok := find()
+	if !ok {
+		s.Catalog(project)
+		if f, ok = find(); !ok {
+			return File{}, fs.ErrNotExist
 		}
 	}
-	return File{}, fs.ErrNotExist
+	return s.fileState(f), nil
+}
+
+// forgetFiles drops the cached file lists after a change to the file set.
+func (s *Server) forgetFiles() {
+	s.cacheMu.Lock()
+	s.fileIndex = nil
+	s.cacheMu.Unlock()
 }

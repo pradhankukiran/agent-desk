@@ -12,7 +12,9 @@ type Server struct {
 	undo        map[string]undoRecord // last save per file path, guarded by mu
 
 	cacheMu      sync.Mutex
-	sessionCache map[string]sessionFile // session list details per history file
+	sessionCache map[string]sessionFile     // session list details per history file
+	fileIndex    map[string]map[string]File // catalog files by project, then file ID
+	scans        int                        // catalog scans so far, for tests
 }
 
 func New(home string) *Server {

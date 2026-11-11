@@ -116,6 +116,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			rec.after = digest(content)
 			s.undo[f.Path] = rec
 		}
+		s.forgetFiles()
 		reply(w, 200, map[string]any{"revision": digest(content), "backup": backup, "merged": merged})
 	})
 	mux.HandleFunc("DELETE /api/file", func(w http.ResponseWriter, r *http.Request) {
@@ -146,6 +147,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			return
 		}
 		delete(s.undo, f.Path)
+		s.forgetFiles()
 		reply(w, 200, map[string]string{"backup": backup})
 	})
 	mux.HandleFunc("POST /api/undo", func(w http.ResponseWriter, r *http.Request) {
@@ -166,6 +168,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
+		s.forgetFiles()
 		reply(w, 200, map[string]bool{"removed": removed})
 	})
 	mux.HandleFunc("POST /api/skill", func(w http.ResponseWriter, r *http.Request) {
@@ -212,6 +215,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			return
 		}
 		s.undo[path] = undoRecord{after: digest([]byte(body.Content)), newDir: newDir}
+		s.forgetFiles()
 		reply(w, 201, map[string]string{"id": fileID(path)})
 	})
 	mux.HandleFunc("GET /api/sessions", s.sessionsHandler)

@@ -1,6 +1,7 @@
 package desk
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -30,4 +31,37 @@ func TestCatalogJSONCSharedSkillsAndProject(t *testing.T) {
 		}
 	}
 	t.Fatal("project instructions not found")
+}
+
+func TestLookupReusesCatalog(t *testing.T) {
+	s := fixture(t)
+	agents := filepath.Join(s.Home, ".codex/AGENTS.md")
+	put(t, agents, "# Notes\n")
+	scans := func() int { s.cacheMu.Lock(); defer s.cacheMu.Unlock(); return s.scans }
+	s.Catalog("")
+	for i := 0; i < 3; i++ {
+		if f, e := s.lookup("", fileID(agents)); e != nil || !f.Exists {
+			t.Fatalf("lookup: %+v %v", f, e)
+		}
+	}
+	if n := scans(); n != 1 {
+		t.Fatalf("lookups rescanned: %d scans", n)
+	}
+	// State is refreshed from disk, not taken from the cached scan.
+	os.Remove(agents)
+	if f, _ := s.lookup("", fileID(agents)); f.Exists {
+		t.Fatal("removed file reported as present")
+	}
+	// An unknown ID triggers one rescan, which finds a new skill.
+	skill := filepath.Join(s.Home, ".codex/skills/new/SKILL.md")
+	put(t, skill, skillDoc)
+	if _, e := s.lookup("", fileID(skill)); e != nil {
+		t.Fatalf("new skill not found: %v", e)
+	}
+	if _, e := s.lookup("", "unknown"); e == nil {
+		t.Fatal("unknown ID found")
+	}
+	if n := scans(); n != 3 {
+		t.Fatalf("want 3 scans, got %d", n)
+	}
 }
