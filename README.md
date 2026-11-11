@@ -87,3 +87,29 @@ Shared skills may appear under multiple agents. Bundled, installed-plugin, manag
 
 Agy stores full conversation steps as binary payloads. Agent Desk reads the local search index instead. These excerpts may omit content and group user and assistant text by index chunk. The interface labels them as excerpts rather than a complete, ordered transcript.
 
+## Everyday use
+
+1. Select an agent in the sidebar.
+2. Keep **User configuration** selected, or choose a project to include its local files.
+3. Open **Extensions**, **Instructions**, or **Settings** to inspect an item and its source path.
+4. Make changes in the editor, select **Review changes**, then **Confirm save**.
+5. Open **Sessions** to browse history and filter the messages in a selected conversation.
+
+Use **Refresh** to rescan configuration and reload session metadata. An already-open editor retains its snapshot; close and reopen it to load external changes.
+
+### Command-line options
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--port` | `7437` | Choose the listening port. Set `0` to select an available port. |
+| `--no-open` | `false` | Print the URL without opening a browser. |
+| `--home` | Current user's home | Inspect agent files under a different home directory. Use an absolute path. |
+
+```sh
+./bin/agent-desk --port 0
+./bin/agent-desk --no-open
+./bin/agent-desk --home /absolute/path/to/demo-home --no-open
+```
+
+Project selection is restricted to directories inside the selected home. Agent executable detection uses the process's `PATH`, including when `--home` points to a fixture directory.
+
