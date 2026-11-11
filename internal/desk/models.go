@@ -39,6 +39,8 @@ type Session struct {
 	Updated string `json:"updated"`
 	Path    string `json:"path"`
 	Format  string `json:"format"`
+	// dirs lists the session's working folders when Project is a display form.
+	dirs []string
 }
 
 type Message struct {

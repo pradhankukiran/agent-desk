@@ -1,12 +1,65 @@
 package desk
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
+
+// sessionDirs turns a recorded working folder into plain paths. Agy records a
+// JSON list of file:// URIs; other agents record a single path.
+func sessionDirs(recorded string) []string {
+	raw := []string{recorded}
+	if strings.HasPrefix(recorded, "[") {
+		raw = nil
+		_ = json.Unmarshal([]byte(recorded), &raw)
+	}
+	dirs := []string{}
+	for _, d := range raw {
+		if strings.HasPrefix(d, "file://") {
+			u, e := url.Parse(d)
+			if e != nil {
+				continue
+			}
+			d = u.Path
+		}
+		if d != "" {
+			dirs = append(dirs, filepath.Clean(d))
+		}
+	}
+	return dirs
+}
+
+// inProject reports whether the session ran in project or a folder inside it.
+// project must already have symbolic links resolved; cache holds resolved dirs.
+func inProject(item Session, project string, cache map[string]string) bool {
+	dirs := item.dirs
+	if dirs == nil {
+		dirs = sessionDirs(item.Project)
+	}
+	for _, d := range dirs {
+		if !filepath.IsAbs(d) {
+			continue
+		}
+		real, ok := cache[d]
+		if !ok {
+			real = d
+			if r, e := filepath.EvalSymlinks(d); e == nil {
+				real = r
+			}
+			cache[d] = real
+		}
+		if within(project, real) {
+			return true
+		}
+	}
+	return false
+}
 
 func (s *Server) listSessions(agent string) ([]Session, []string, error) {
 	switch agent {
@@ -33,8 +86,9 @@ func (s *Server) sessionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	query := strings.ToLower(r.URL.Query().Get("q"))
 	filtered := []Session{}
+	resolved := map[string]string{}
 	for _, item := range items {
-		if project != "" && !strings.Contains(item.Project, project) {
+		if project != "" && !inProject(item, project, resolved) {
 			continue
 		}
 		if query != "" && !strings.Contains(strings.ToLower(item.Title+" "+item.Project+" "+item.ID), query) {

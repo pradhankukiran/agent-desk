@@ -90,7 +90,8 @@ func (s *Server) dbSessions(agent string) ([]Session, []string) {
 			if title == "" {
 				title = id
 			}
-			out = append(out, Session{ID: id, Agent: agent, Title: title, Project: project, Updated: updated, Path: path, Format: "indexed excerpts"})
+			dirs := sessionDirs(project)
+			out = append(out, Session{ID: id, Agent: agent, Title: title, Project: strings.Join(dirs, ", "), Updated: updated, Path: path, Format: "indexed excerpts", dirs: dirs})
 		}
 		if e = rows.Err(); e != nil {
 			warnings = append(warnings, e.Error())
