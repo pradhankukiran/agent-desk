@@ -113,3 +113,32 @@ Use **Refresh** to rescan configuration and reload session metadata. An already-
 
 Project selection is restricted to directories inside the selected home. Agent executable detection uses the process's `PATH`, including when `--home` points to a fixture directory.
 
+## Safety and privacy
+
+Agent Desk can read conversation text and edit real configuration files. Treat its browser tab and access URL as local administrative access.
+
+- The server listens on **127.0.0.1**.
+- Every API request requires a random token generated at startup.
+- API requests from foreign browser origins are rejected; accepted hostnames are restricted to localhost.
+- File operations use catalog identifiers rather than arbitrary file paths.
+- Writes outside the selected home and writes through symbolic links are rejected.
+- Session databases are opened in read-only mode.
+- The app does not intentionally select credential-only files such as `auth.json`. Configuration and session text can still contain credentials or other private information.
+- The app serves local assets and does not send configuration or conversation data to an external service.
+
+Do not expose the server through a public proxy or share its access URL. This is a local, single-user application.
+
+### Saves and backups
+
+Saving validates configuration syntax, checks the opened revision, preserves existing file permissions, and replaces the target through a temporary file and rename. Removing an editable skill or instruction file also creates a backup.
+
+Backups are private JSON files stored under:
+
+```text
+~/.local/state/agent-desk/backups/
+```
+
+Each backup records the original `path`, `content`, and save time. **Undo last save** places the previous content into the review flow while the editor remains open. Older backups can be restored manually using their recorded path and content.
+
+Backups may contain sensitive values. Revision checks reduce accidental overwrites, but they are not a locking protocol shared with running agent processes. Validation checks syntax, not every agent-specific setting or its operational effect.
+
