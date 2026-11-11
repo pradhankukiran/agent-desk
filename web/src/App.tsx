@@ -302,7 +302,7 @@ export default function App() {
           </p>
         </div>
         <div className="sidebar-footer">
-          WSL WORKSPACE <span>↗</span>
+          LOCAL WORKSPACE <span>↗</span>
         </div>
       </aside>
       <main>
