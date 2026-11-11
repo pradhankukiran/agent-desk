@@ -7,7 +7,45 @@ import { StreamLanguage } from "@codemirror/language";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 import type { Catalog, OpenFile, Session, Transcript } from "./types";
 import { api, query } from "./api";
-import { FileRow, Empty, Changes, MessageText } from "./components";
+import { FileRow, Changes, MessageText, useDarkMode } from "./components";
+import {
+  Banner,
+  Button,
+  CounterLabel,
+  FormControl,
+  Heading,
+  IconButton,
+  Label,
+  RelativeTime,
+  Select,
+  Spinner,
+  TextInput,
+  Textarea,
+  UnderlineNav,
+} from "@primer/react";
+import { Blankslate, Dialog, KeybindingHint } from "@primer/react/experimental";
+import {
+  ChecklistIcon,
+  CommentDiscussionIcon,
+  CopyIcon,
+  CpuIcon,
+  FileIcon,
+  HistoryIcon,
+  LightBulbIcon,
+  LinkIcon,
+  LockIcon,
+  PersonIcon,
+  PlugIcon,
+  PlusIcon,
+  SearchIcon,
+  ServerIcon,
+  SyncIcon,
+  TerminalIcon,
+  TrashIcon,
+  XIcon,
+  ZapIcon,
+  type Icon,
+} from "@primer/octicons-react";
 
 // languageFor picks syntax colouring from a file name.
 function languageFor(name: string) {
@@ -28,6 +66,20 @@ const defaultAgents = [
   { id: "agy", name: "Agy" },
 ];
 const tabs = ["Files", "Extensions", "Sessions"];
+const tabIcons: Record<string, Icon> = {
+  Files: FileIcon,
+  Extensions: PlugIcon,
+  Sessions: CommentDiscussionIcon,
+};
+const kindIcons: Record<string, Icon> = {
+  mcp: ServerIcon,
+  skill: LightBulbIcon,
+  plugin: PlugIcon,
+  hook: ZapIcon,
+  agent: PersonIcon,
+  command: TerminalIcon,
+  rule: ChecklistIcon,
+};
 const kindNames: Record<string, string> = {
   mcp: "MCP server",
   skill: "Skill",
@@ -55,6 +107,7 @@ export default function App() {
   const [fileLoading, setFileLoading] = useState(false);
   const fileRequest = useRef(0);
   const searchBox = useRef<HTMLInputElement>(null);
+  const dark = useDarkMode();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [session, setSession] = useState<Session>();
   const [transcript, setTranscript] = useState<Transcript>();
@@ -374,18 +427,18 @@ export default function App() {
   );
   return (
     <div className={"app" + (opened || fileLoading ? " with-panel" : "")}>
-      <aside className="sidebar">
-        <div className="brand">agent desk</div>
-        <div className="nav-caption">
-          Agents <span>{navAgents.length}</span>
+      <header className="app-header">
+        <div className="brand">
+          <CpuIcon size={20} />
+          <span>Agent Desk</span>
         </div>
-        <nav>
+        <nav className="agent-tabs" aria-label="Agents">
           {navAgents.map((a) => {
             const full = catalog?.agents.find((x) => x.id === a.id);
             return (
               <button
                 key={a.id}
-                className={"agent-nav" + (a.id === agentID ? " selected" : "")}
+                className="agent-tab"
                 aria-current={a.id === agentID ? "page" : undefined}
                 onClick={() => navigate(a.id)}
               >
@@ -393,143 +446,145 @@ export default function App() {
                   className={"install-dot" + (full?.installed ? " on" : "")}
                   title={full?.installed ? "Installed" : "Not found on PATH"}
                 />
-                <span className="agent-name">{a.name}</span>
-                {full && (
-                  <span className="agent-count" title="Extensions found">
-                    {full.extensions.length}
-                  </span>
-                )}
+                {a.name}
+                {full && <CounterLabel>{full.extensions.length}</CounterLabel>}
               </button>
             );
           })}
         </nav>
-      </aside>
+        <div className="header-actions">
+          <Select
+            aria-label="Project scope"
+            size="small"
+            value={project}
+            onChange={(e) =>
+              e.target.value === "__custom"
+                ? setCustomProject(true)
+                : chooseProject(e.target.value)
+            }
+          >
+            <Select.Option value="">No project (user settings)</Select.Option>
+            {Array.from(
+              new Set([
+                ...(catalog?.projects || []),
+                ...(project ? [project] : []),
+              ]),
+            ).map((p) => (
+              <Select.Option key={p} value={p}>
+                {tilde(p)}
+              </Select.Option>
+            ))}
+            <Select.Option value="__custom">Other folder…</Select.Option>
+          </Select>
+          <IconButton
+            icon={SyncIcon}
+            size="small"
+            aria-label="Reload from disk"
+            onClick={() => {
+              setReload((v) => v + 1);
+              setNotice("Reloaded from disk.");
+            }}
+          />
+        </div>
+      </header>
       <main>
-        <header className="page-header">
-          <div>
-            <h1>{agent?.name || "Agent Desk"}</h1>
-            <p className="page-meta">
-              {!agent
-                ? "Loading…"
-                : agent.installed
-                  ? agent.executable
-                  : "Not found on PATH"}
-            </p>
-          </div>
-          <div className="header-actions">
-            <label className="scope-label" htmlFor="project-scope">
-              Project
-            </label>
-            <select
-              id="project-scope"
-              aria-label="Project scope"
-              value={project}
-              onChange={(e) =>
-                e.target.value === "__custom"
-                  ? setCustomProject(true)
-                  : chooseProject(e.target.value)
-              }
-            >
-              <option value="">None (user settings only)</option>
-              {Array.from(
-                new Set([
-                  ...(catalog?.projects || []),
-                  ...(project ? [project] : []),
-                ]),
-              ).map((p) => (
-                <option key={p} value={p}>
-                  {tilde(p)}
-                </option>
-              ))}
-              <option value="__custom">Other folder…</option>
-            </select>
-            <button
-              className="button secondary"
-              onClick={() => {
-                setReload((v) => v + 1);
-                setNotice("Reloaded from disk.");
-              }}
-            >
-              Reload
-            </button>
-          </div>
-        </header>
-        <div className="tabs" role="tablist">
+        <div className="page-title">
+          <Heading as="h1" className="agent-heading">
+            {agent?.name || "Agent Desk"}
+          </Heading>
+          {agent && (
+            <Label variant={agent.installed ? "success" : "secondary"}>
+              {agent.installed ? "Installed" : "Not on PATH"}
+            </Label>
+          )}
+          {agent?.executable && (
+            <code className="page-meta">{agent.executable}</code>
+          )}
+        </div>
+        <UnderlineNav aria-label="Sections" className="sections">
           {tabs.map((t) => (
-            <button
-              role="tab"
-              aria-selected={t === tab}
+            <UnderlineNav.Item
               key={t}
-              className={t === tab ? "active" : ""}
-              onClick={() => {
+              href={"#" + t.toLowerCase()}
+              aria-current={t === tab ? "page" : undefined}
+              icon={tabIcons[t]}
+              counter={
+                !agent || t === "Sessions"
+                  ? undefined
+                  : t === "Files"
+                    ? fileCount
+                    : agent.extensions.length
+              }
+              onSelect={(e) => {
+                e.preventDefault();
                 setTab(t);
                 setSearch("");
                 setKind("all");
               }}
             >
               {t}
-              {t !== "Sessions" && agent && (
-                <span className="tab-count">
-                  {t === "Files" ? fileCount : agent.extensions.length}
-                </span>
-              )}
-            </button>
+            </UnderlineNav.Item>
           ))}
-        </div>
+        </UnderlineNav>
         <div className="content">
           {error && !opened && (
-            <div role="alert" className="alert error">
-              {error}
-              <button aria-label="Dismiss" onClick={() => setError("")}>
-                ×
-              </button>
+            <div role="alert">
+              <Banner
+                variant="critical"
+                title={error}
+                layout="compact"
+                onDismiss={() => setError("")}
+              />
             </div>
           )}
           {notice && (
-            <div role="status" className="alert success">
-              {notice}
-              <button aria-label="Dismiss" onClick={() => setNotice("")}>
-                ×
-              </button>
+            <div role="status">
+              <Banner
+                variant="success"
+                title={notice}
+                layout="compact"
+                onDismiss={() => setNotice("")}
+              />
             </div>
           )}
           {agent?.warnings.map((w, i) => (
-            <div className="alert warning" key={i}>
-              {w}
-            </div>
+            <Banner key={i} variant="warning" title={w} layout="compact" />
           ))}
           <div className="toolbar">
-            <input
+            <TextInput
               ref={searchBox}
               className="search"
               type="search"
               aria-label="Search"
+              leadingVisual={SearchIcon}
+              trailingVisual={<KeybindingHint keys="/" />}
               placeholder={
                 tab === "Sessions"
-                  ? "Search titles and folders  ( / )"
+                  ? "Search titles and folders"
                   : tab === "Files"
-                    ? "Search file paths  ( / )"
-                    : "Search names and paths  ( / )"
+                    ? "Search file paths"
+                    : "Search names and paths"
               }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             {tab === "Extensions" && (
               <>
-                <select
+                <Select
                   aria-label="Extension type"
                   value={kind}
                   onChange={(e) => setKind(e.target.value)}
                 >
-                  <option value="all">All types</option>
+                  <Select.Option value="all">All types</Select.Option>
                   {Object.entries(kindNames).map(([k, name]) => (
-                    <option key={k} value={k}>
+                    <Select.Option key={k} value={k}>
                       {name}s
-                    </option>
+                    </Select.Option>
                   ))}
-                </select>
-                <button
-                  className="button primary"
+                </Select>
+                <Button
+                  variant="primary"
+                  leadingVisual={PlusIcon}
                   onClick={() => {
                     setSkillName("");
                     setSkillDescription("");
@@ -537,30 +592,29 @@ export default function App() {
                   }}
                 >
                   New skill
-                </button>
+                </Button>
               </>
             )}
           </div>
           {tab === "Files" &&
             fileGroups.map((g) => (
-              <section className="list-section" key={g.kind}>
-                <h2>
-                  {g.title} <span>{g.files.length}</span>
+              <section className="box" key={g.kind}>
+                <h2 className="box-header">
+                  {g.title}
+                  <CounterLabel>{g.files.length}</CounterLabel>
                 </h2>
                 {g.files.length === 0 ? (
-                  <Empty title="No matching files" text="" />
+                  <p className="box-empty">No matching files.</p>
                 ) : (
-                  <div className="list">
-                    {g.files.map((f) => (
-                      <FileRow
-                        key={f.id}
-                        file={f}
-                        path={tilde(f.path)}
-                        selected={opened?.file.id === f.id}
-                        onOpen={() => openFile(f.id)}
-                      />
-                    ))}
-                  </div>
+                  g.files.map((f) => (
+                    <FileRow
+                      key={f.id}
+                      file={f}
+                      path={tilde(f.path)}
+                      selected={opened?.file.id === f.id}
+                      onOpen={() => openFile(f.id)}
+                    />
+                  ))
                 )}
               </section>
             ))}
@@ -573,12 +627,19 @@ export default function App() {
           {tab === "Extensions" && (
             <>
               {ext.length === 0 ? (
-                <Empty
-                  title="No matching extensions"
-                  text="Nothing was found in the supported locations."
-                />
+                <Blankslate border>
+                  <Blankslate.Visual>
+                    <PlugIcon size="medium" />
+                  </Blankslate.Visual>
+                  <Blankslate.Heading>
+                    No matching extensions
+                  </Blankslate.Heading>
+                  <Blankslate.Description>
+                    Nothing was found in the supported locations.
+                  </Blankslate.Description>
+                </Blankslate>
               ) : (
-                <div className="list">
+                <section className="box">
                   {ext.map((x, i) => (
                     <button
                       className={
@@ -588,18 +649,26 @@ export default function App() {
                       key={x.fileId + x.name + i}
                       onClick={() => openFile(x.fileId)}
                     >
+                      <span className="row-icon">
+                        {(() => {
+                          const Icon = kindIcons[x.kind] || FileIcon;
+                          return <Icon />;
+                        })()}
+                      </span>
                       <span className="row-main">
                         <strong>{x.name}</strong>
                         <small title={x.source}>{tilde(x.source)}</small>
                       </span>
-                      <span className="row-meta">{kindNames[x.kind]}</span>
-                      <span className="row-meta">{x.scope}</span>
-                      <span className={"row-meta status-" + x.status}>
-                        {x.status}
+                      <span className="row-meta">
+                        <Label variant="secondary">{kindNames[x.kind]}</Label>
+                        <span className="row-scope">{x.scope}</span>
+                        <span className={"row-status status-" + x.status}>
+                          {x.status}
+                        </span>
                       </span>
                     </button>
                   ))}
-                </div>
+                </section>
               )}
               <p className="footnote">
                 “Present” means found on disk; “configured” means listed in a
@@ -610,19 +679,19 @@ export default function App() {
           {tab === "Sessions" && (
             <>
               {sessionWarnings.map((w, i) => (
-                <div className="alert warning" key={i}>
-                  {w}
-                </div>
+                <Banner key={i} variant="warning" title={w} layout="compact" />
               ))}
               <div className="sessions-layout">
-                <section className="session-list">
+                <section className="box session-list">
                   {sessionBusy ? (
-                    <Empty title="Loading…" text="" />
+                    <div className="box-empty">
+                      <Spinner size="small" /> Loading…
+                    </div>
                   ) : visibleSessions.length === 0 ? (
-                    <Empty
-                      title="No matching sessions"
-                      text="Try another project or clear your search."
-                    />
+                    <p className="box-empty">
+                      No matching sessions. Try another project or clear your
+                      search.
+                    </p>
                   ) : (
                     visibleSessions.map((s) => (
                       <button
@@ -642,7 +711,7 @@ export default function App() {
                           {s.project ? tilde(s.project) : "Folder not recorded"}
                         </small>
                         <small>
-                          {new Date(s.updated).toLocaleString()}
+                          <RelativeTime date={new Date(s.updated)} />
                           {s.format === "indexed excerpts" ? " · Excerpts" : ""}
                         </small>
                       </button>
@@ -651,45 +720,55 @@ export default function App() {
                 </section>
                 <section className="transcript">
                   {!session ? (
-                    <Empty
-                      title="Pick a conversation"
-                      text="Conversations are read-only."
-                    />
+                    <Blankslate border>
+                      <Blankslate.Visual>
+                        <CommentDiscussionIcon size="medium" />
+                      </Blankslate.Visual>
+                      <Blankslate.Heading>
+                        Pick a conversation
+                      </Blankslate.Heading>
+                      <Blankslate.Description>
+                        Conversations are read-only.
+                      </Blankslate.Description>
+                    </Blankslate>
                   ) : (
                     <>
                       <div className="transcript-heading">
-                        <h2>{session.title}</h2>
-                        <input
+                        <Heading as="h2" className="transcript-title">
+                          {session.title}
+                        </Heading>
+                        <TextInput
                           type="search"
                           aria-label="Find in conversation"
                           placeholder="Filter messages"
+                          leadingVisual={SearchIcon}
                           value={transcriptSearch}
                           onChange={(e) => setTranscriptSearch(e.target.value)}
                         />
                       </div>
                       {!transcript ? (
-                        <Empty title="Loading…" text="" />
+                        <div className="box-empty">
+                          <Spinner size="small" /> Loading…
+                        </div>
                       ) : (
                         <>
                           <p className="footnote">
                             {transcript.note || "Stored conversation text."}
                           </p>
-                          {transcript.messages.length === 0 &&
-                            (transcriptQuery ? (
-                              <Empty
-                                title="No matching messages"
-                                text="Try different words."
-                              />
-                            ) : (
-                              <Empty
-                                title="No readable messages"
-                                text="This session has no text in a supported format."
-                              />
-                            ))}
+                          {transcript.messages.length === 0 && (
+                            <p className="box-empty">
+                              {transcriptQuery
+                                ? "No matching messages."
+                                : "This session has no text in a supported format."}
+                            </p>
+                          )}
                           {transcript.messages.map((m, i) => {
                             const copy = (
-                              <button
-                                className="text-button"
+                              <IconButton
+                                icon={CopyIcon}
+                                size="small"
+                                variant="invisible"
+                                aria-label="Copy message"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   navigator.clipboard
@@ -701,9 +780,7 @@ export default function App() {
                                       ),
                                     );
                                 }}
-                              >
-                                Copy
-                              </button>
+                              />
                             );
                             return m.role === "thinking" ? (
                               <details
@@ -736,13 +813,13 @@ export default function App() {
                                 : "messages"}
                               {transcript.messages.length <
                                 transcript.total && (
-                                <button
-                                  className="button secondary"
-                                  disabled={moreBusy}
+                                <Button
+                                  size="small"
+                                  loading={moreBusy}
                                   onClick={loadMoreMessages}
                                 >
-                                  {moreBusy ? "Loading…" : "Show more"}
-                                </button>
+                                  Show more
+                                </Button>
                               )}
                             </div>
                           )}
@@ -763,43 +840,43 @@ export default function App() {
           aria-label="File editor"
         >
           <div className="panel-header">
-            <div>
-              <h2>
+            <div className="panel-title">
+              <Heading as="h2">
                 {opened?.file.name || "Loading…"}
-                {dirty && <span className="unsaved">Unsaved</span>}
-              </h2>
+                {dirty && <Label variant="attention">Unsaved</Label>}
+              </Heading>
               {opened && (
                 <p className="file-path" title={opened.file.path}>
-                  {tilde(opened.file.path)}
-                  <span>
-                    {" · "}
-                    {opened.file.scope} ·{" "}
-                    {opened.file.editable ? "editable" : "read-only"}
-                  </span>
+                  <code>{tilde(opened.file.path)}</code>
+                  <Label variant="secondary">{opened.file.scope}</Label>
+                  {!opened.file.editable && (
+                    <Label variant="secondary">
+                      <LockIcon size={12} /> read-only
+                    </Label>
+                  )}
                 </p>
               )}
             </div>
-            <button
-              className="close"
+            <IconButton
+              icon={XIcon}
+              variant="invisible"
               disabled={busy}
               aria-label="Close editor"
               onClick={closeEditor}
-            >
-              ×
-            </button>
+            />
           </div>
           {opened && (
             <>
               {error && (
-                <div role="alert" className="alert error">
-                  {error}
+                <div role="alert" className="panel-banner">
+                  <Banner variant="critical" title={error} layout="compact" />
                 </div>
               )}
               {opened.file.target && (
                 <p className="panel-note">
-                  This path is a link. Changes are saved to{" "}
-                  <code>{tilde(opened.file.target)}</code>, and the link stays
-                  in place.
+                  <LinkIcon size={12} /> This path is a link. Changes are saved
+                  to <code>{tilde(opened.file.target)}</code>, and the link
+                  stays in place.
                 </p>
               )}
               {!opened.file.editable && (
@@ -829,6 +906,7 @@ export default function App() {
                     before={opened.content}
                     after={opened.undo.content}
                     language={languageFor(opened.file.name)}
+                    dark={dark}
                   />
                 )
               ) : review ? (
@@ -837,12 +915,14 @@ export default function App() {
                   before={opened.content}
                   after={draft}
                   language={languageFor(opened.file.name)}
+                  dark={dark}
                 />
               ) : (
                 <div className="code-editor">
                   <CodeMirror
                     value={draft}
                     height="100%"
+                    theme={dark ? "dark" : "light"}
                     extensions={languageFor(opened.file.name)}
                     editable={opened.file.editable && !busy}
                     onChange={setDraft}
@@ -855,67 +935,56 @@ export default function App() {
                   {opened.file.editable &&
                     opened.file.exists &&
                     ["skill", "instruction"].includes(opened.file.kind) && (
-                      <button
-                        className="button danger"
+                      <Button
+                        variant="danger"
+                        leadingVisual={TrashIcon}
                         disabled={busy}
                         onClick={remove}
                       >
                         {opened.file.kind === "skill"
                           ? "Remove skill"
                           : "Remove file"}
-                      </button>
+                      </Button>
                     )}
                   {opened.undo && !review && !undoReview && (
-                    <button
-                      className="button secondary"
+                    <Button
+                      leadingVisual={HistoryIcon}
                       disabled={busy || dirty}
                       title={dirty ? "Save or discard your edits first" : ""}
                       onClick={() => setUndoReview(true)}
                     >
                       Undo last save
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <div>
                   {undoReview && (
                     <>
-                      <button
-                        className="button secondary"
+                      <Button
                         disabled={busy}
                         onClick={() => setUndoReview(false)}
                       >
                         Back to editing
-                      </button>
-                      <button
-                        className="button primary"
-                        disabled={busy}
-                        onClick={undo}
-                      >
-                        {busy ? "Undoing…" : "Confirm undo"}
-                      </button>
+                      </Button>
+                      <Button variant="primary" loading={busy} onClick={undo}>
+                        Confirm undo
+                      </Button>
                     </>
                   )}
                   {review && (
-                    <button
-                      className="button secondary"
-                      disabled={busy}
-                      onClick={() => setReview(false)}
-                    >
+                    <Button disabled={busy} onClick={() => setReview(false)}>
                       Back to editing
-                    </button>
+                    </Button>
                   )}
                   {opened.file.editable && !undoReview && (
-                    <button
-                      className="button primary"
-                      disabled={!dirty || busy}
+                    <Button
+                      variant="primary"
+                      disabled={!dirty}
+                      loading={busy}
                       onClick={() => (review ? save() : setReview(true))}
                     >
-                      {busy
-                        ? "Saving…"
-                        : review
-                          ? "Confirm save"
-                          : "Review changes"}
-                    </button>
+                      {review ? "Confirm save" : "Review changes"}
+                    </Button>
                   )}
                 </div>
               </div>
@@ -924,66 +993,79 @@ export default function App() {
         </section>
       )}
       {newSkill && (
-        <div className="overlay">
+        <Dialog
+          title="New skill"
+          subtitle={
+            "For " +
+            (agent?.name || "") +
+            ", " +
+            (project ? "in " + tilde(project) : "in your user settings")
+          }
+          onClose={() => setNewSkill(false)}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setNewSkill(false) },
+            {
+              content: "Create and edit",
+              buttonType: "primary",
+              type: "submit",
+              form: "new-skill",
+              disabled: busy,
+            },
+          ]}
+        >
           <form
-            className="small-dialog"
-            role="dialog"
-            aria-label="Create a skill"
+            id="new-skill"
+            className="dialog-form"
             onSubmit={(e) => {
               e.preventDefault();
               createSkill();
             }}
           >
-            <div className="panel-header">
-              <h2>New skill</h2>
-              <button
-                type="button"
-                className="close"
-                aria-label="Close"
-                onClick={() => setNewSkill(false)}
-              >
-                ×
-              </button>
-            </div>
-            <p className="panel-note">
-              For {agent?.name},{" "}
-              {project ? "in " + tilde(project) : "in your user settings"}.
-            </p>
-            {error && <div className="alert error">{error}</div>}
-            <label>
-              Name
-              <input
-                required
+            {error && (
+              <Banner variant="critical" title={error} layout="compact" />
+            )}
+            <FormControl required>
+              <FormControl.Label>Name</FormControl.Label>
+              <TextInput
+                block
                 pattern="[a-z0-9][a-z0-9-]{0,63}"
                 placeholder="review-changes"
                 value={skillName}
                 onChange={(e) => setSkillName(e.target.value)}
               />
-            </label>
-            <label>
-              Description
-              <textarea
-                required
+              <FormControl.Caption>
+                Lowercase letters, numbers, and hyphens.
+              </FormControl.Caption>
+            </FormControl>
+            <FormControl required>
+              <FormControl.Label>Description</FormControl.Label>
+              <Textarea
+                block
                 placeholder="When should this skill be used?"
                 value={skillDescription}
                 onChange={(e) => setSkillDescription(e.target.value)}
               />
-            </label>
-            <div className="editor-actions">
-              <span />
-              <button className="button primary" disabled={busy}>
-                Create and edit
-              </button>
-            </div>
+            </FormControl>
           </form>
-        </div>
+        </Dialog>
       )}
       {customProject && (
-        <div className="overlay">
+        <Dialog
+          title="Choose a project"
+          onClose={() => setCustomProject(false)}
+          footerButtons={[
+            { content: "Cancel", onClick: () => setCustomProject(false) },
+            {
+              content: "Open project",
+              buttonType: "primary",
+              type: "submit",
+              form: "choose-project",
+            },
+          ]}
+        >
           <form
-            className="small-dialog"
-            role="dialog"
-            aria-label="Choose a project"
+            id="choose-project"
+            className="dialog-form"
             onSubmit={async (e) => {
               e.preventDefault();
               try {
@@ -994,33 +1076,20 @@ export default function App() {
               }
             }}
           >
-            <div className="panel-header">
-              <h2>Choose a project</h2>
-              <button
-                type="button"
-                className="close"
-                aria-label="Close"
-                onClick={() => setCustomProject(false)}
-              >
-                ×
-              </button>
-            </div>
-            <label>
-              Folder inside your home
-              <input
-                required
+            {error && (
+              <Banner variant="critical" title={error} layout="compact" />
+            )}
+            <FormControl required>
+              <FormControl.Label>Folder inside your home</FormControl.Label>
+              <TextInput
+                block
                 placeholder="~/projects/my-project"
                 value={projectDraft}
                 onChange={(e) => setProjectDraft(e.target.value)}
               />
-            </label>
-            {error && <div className="alert error">{error}</div>}
-            <div className="editor-actions">
-              <span />
-              <button className="button primary">Open project</button>
-            </div>
+            </FormControl>
           </form>
-        </div>
+        </Dialog>
       )}
     </div>
   );

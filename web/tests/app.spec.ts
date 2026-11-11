@@ -105,19 +105,19 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
   await page.screenshot({ path: "test-results/overview.png", fullPage: true });
-  await expect(page.locator(".nav-caption")).toHaveText("Agents 5");
+  await expect(page.locator(".agent-tab")).toHaveCount(5);
   for (const name of ["Claude Code", "OpenCode", "Grok", "Agy", "Codex"]) {
-    await page.locator(".agent-nav").filter({ hasText: name }).click();
+    await page.locator(".agent-tab").filter({ hasText: name }).click();
     await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
   }
-  await page.getByRole("tab", { name: "Extensions" }).click();
+  await page.getByRole("link", { name: "Extensions" }).click();
   await expect(
     page.locator(".extension-row strong").getByText("docs", { exact: true }),
   ).toBeVisible();
   await expect(
     page.locator(".extension-row strong").getByText("review", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "Files" }).click();
+  await page.getByRole("link", { name: "Files" }).click();
   await page
     .locator(".file-row")
     .filter({ hasText: ".codex/AGENTS.md" })
@@ -163,11 +163,11 @@ test("browse agents, review and save instructions, create a skill, read a sessio
     page.getByRole("button", { name: "Undo last save" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Close editor" }).click();
-  await page.getByRole("tab", { name: "Extensions" }).click();
+  await page.getByRole("link", { name: "Extensions" }).click();
   await page.getByRole("button", { name: "New skill" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("check-work");
+  await page.getByRole("textbox", { name: /^Name/ }).fill("check-work");
   await page
-    .getByLabel("Description", { exact: true })
+    .getByRole("textbox", { name: /^Description/ })
     .fill("Use when checking a change");
   await page.getByRole("button", { name: "Create and edit" }).click();
   await expect(page.getByRole("dialog", { name: "File editor" })).toBeVisible();
@@ -189,7 +189,7 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await expect(page.getByRole("status")).toContainText("Skill removed.");
   expect(question).toContain("2 files");
   expect(existsSync(join(home, ".codex/skills/check-work"))).toBe(false);
-  await page.getByRole("tab", { name: "Sessions" }).click();
+  await page.getByRole("link", { name: "Sessions" }).click();
   await page
     .locator(".session-row")
     .filter({ hasText: "Review the application" })
@@ -210,8 +210,8 @@ test("undo removes a file created by the last save, even after a reload", async 
   page,
 }) => {
   await page.goto(link);
-  await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
-  await page.getByRole("tab", { name: "Files" }).click();
+  await page.locator(".agent-tab").filter({ hasText: "Grok" }).click();
+  await page.getByRole("link", { name: "Files" }).click();
   const row = page.locator(".file-row").filter({ hasText: ".grok/AGENTS.md" });
   await row.click();
   await page.locator(".cm-content").fill("# Grok notes\n");
@@ -219,8 +219,8 @@ test("undo removes a file created by the last save, even after a reload", async 
   await page.getByRole("button", { name: "Confirm save" }).click();
   await expect(page.getByRole("status")).toContainText("File created.");
   await page.reload();
-  await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
-  await page.getByRole("tab", { name: "Files" }).click();
+  await page.locator(".agent-tab").filter({ hasText: "Grok" }).click();
+  await page.getByRole("link", { name: "Files" }).click();
   await row.click();
   await page.getByRole("button", { name: "Undo last save" }).click();
   await expect(page.getByText("The file will be removed")).toBeVisible();
@@ -232,8 +232,8 @@ test("JSON settings changed by another program are merged on save", async ({
   page,
 }) => {
   await page.goto(link);
-  await page.locator(".agent-nav").filter({ hasText: "Claude Code" }).click();
-  await page.getByRole("tab", { name: "Files" }).click();
+  await page.locator(".agent-tab").filter({ hasText: "Claude Code" }).click();
+  await page.getByRole("link", { name: "Files" }).click();
   await page
     .locator(".file-row")
     .filter({ hasText: ".claude/settings.json" })
@@ -259,8 +259,8 @@ test("files reached through a linked folder can be edited", async ({
   rmSync(join(home, ".grok"), { recursive: true, force: true });
   symlinkSync(join(home, "dotfiles/grok"), join(home, ".grok"));
   await page.goto(link);
-  await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
-  await page.getByRole("tab", { name: "Files" }).click();
+  await page.locator(".agent-tab").filter({ hasText: "Grok" }).click();
+  await page.getByRole("link", { name: "Files" }).click();
   await page
     .locator(".file-row")
     .filter({ hasText: ".grok/config.toml" })
@@ -300,7 +300,7 @@ test("long conversations load in pages and huge messages are shortened", async (
   content += line("assistant", "x".repeat(30000));
   file(".codex/sessions/2026/01/02/long.jsonl", content);
   await page.goto(link);
-  await page.getByRole("tab", { name: "Sessions" }).click();
+  await page.getByRole("link", { name: "Sessions" }).click();
   await page
     .locator(".session-row")
     .filter({ hasText: "Long conversation start" })
@@ -339,7 +339,7 @@ test("invalid configuration and stale revisions cannot overwrite files", async (
   page,
 }) => {
   await page.goto(link);
-  await page.getByRole("tab", { name: "Files" }).click();
+  await page.getByRole("link", { name: "Files" }).click();
   await page.locator(".file-row").filter({ hasText: "config.toml" }).click();
   // TOML gets syntax colouring.
   await expect(page.locator(".cm-content span").first()).toBeVisible();
