@@ -44,6 +44,34 @@ func revision(path string, b []byte) string {
 	return digest(b)
 }
 
+// realPath resolves symbolic links in path, also for a file that does not
+// exist yet, and requires the result to be inside home.
+func (s *Server) realPath(path string) (string, error) {
+	rest := []string{}
+	p := filepath.Clean(path)
+	for {
+		r, e := filepath.EvalSymlinks(p)
+		if e == nil {
+			for i := len(rest) - 1; i >= 0; i-- {
+				r = filepath.Join(r, rest[i])
+			}
+			if !within(s.Home, r) {
+				return "", fmt.Errorf("file resolves outside home directory")
+			}
+			return r, nil
+		}
+		if !errors.Is(e, fs.ErrNotExist) {
+			return "", e
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return "", e
+		}
+		rest = append(rest, filepath.Base(p))
+		p = parent
+	}
+}
+
 func (s *Server) safeWrite(path string) error {
 	if !within(s.Home, path) {
 		return fmt.Errorf("outside home directory")
@@ -137,13 +165,26 @@ func (s *Server) write(f File, content []byte, expected string, remove, validate
 	if !f.Editable {
 		return "", fmt.Errorf("this file is read-only")
 	}
+	if remove {
+		if info, e := os.Lstat(f.Path); e == nil && info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("this file is a symbolic link; remove it manually")
+		}
+	}
+	// Write to the real file so links in the path, such as a linked
+	// dotfiles folder, stay in place.
+	real, e := s.realPath(f.Path)
+	if e != nil {
+		return "", e
+	}
+	f.Path = real
 	if e := s.safeWrite(f.Path); e != nil {
 		return "", e
 	}
 	if len(content) > maxFile {
 		return "", fmt.Errorf("file exceeds 4 MB")
 	}
-	old, e := readSmall(f.Path)
+	old, err := readSmall(f.Path)
+	e = err
 	exists := e == nil
 	if e != nil && !errors.Is(e, fs.ErrNotExist) {
 		return "", e

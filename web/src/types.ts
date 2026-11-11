@@ -8,6 +8,7 @@ export type FileItem = {
   exists: boolean;
   editable: boolean;
   size: number;
+  target?: string;
 };
 export type Extension = {
   name: string;

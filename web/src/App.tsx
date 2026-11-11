@@ -866,10 +866,17 @@ export default function App() {
                     {error}
                   </div>
                 )}
+                {opened.file.target && (
+                  <div className="panel-note">
+                    This path is a link. Changes are saved to{" "}
+                    <code>{opened.file.target}</code>, and the link stays in
+                    place.
+                  </div>
+                )}
                 {!opened.file.editable && (
                   <div className="panel-note">
-                    This is a managed, bundled, plugin, or linked file. It is
-                    available for viewing.
+                    This is a managed, bundled, or plugin file, or it links
+                    outside your home folder. It is available for viewing.
                   </div>
                 )}
                 {opened.file.name === ".claude.json" && (

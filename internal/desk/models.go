@@ -10,6 +10,7 @@ type File struct {
 	Exists   bool   `json:"exists"`
 	Editable bool   `json:"editable"`
 	Size     int64  `json:"size"`
+	Target   string `json:"target,omitempty"` // real location when reached through a link
 }
 
 type Extension struct {

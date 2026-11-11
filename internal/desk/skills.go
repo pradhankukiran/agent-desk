@@ -54,11 +54,20 @@ func (s *Server) skillFolder(f File, project string) (string, int, error) {
 	if !known {
 		return "", 0, fmt.Errorf("this skill is not inside a known skills folder")
 	}
-	if e := s.safeWrite(f.Path); e != nil {
+	if info, e := os.Lstat(dir); e == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", 0, fmt.Errorf("the skill folder is a symbolic link; remove it manually")
+	}
+	// Work on the real folder when a parent folder is a link.
+	real, e := s.realPath(f.Path)
+	if e != nil {
 		return "", 0, e
 	}
+	if e := s.safeWrite(real); e != nil {
+		return "", 0, e
+	}
+	dir = filepath.Dir(real)
 	count, size := 0, int64(0)
-	e := filepath.WalkDir(dir, func(p string, d fs.DirEntry, e error) error {
+	e = filepath.WalkDir(dir, func(p string, d fs.DirEntry, e error) error {
 		if e != nil {
 			return e
 		}
@@ -69,7 +78,7 @@ func (s *Server) skillFolder(f File, project string) (string, int, error) {
 			return nil
 		case !d.Type().IsRegular():
 			return fmt.Errorf("the skill folder contains a special file; remove it manually")
-		case d.Name() == "SKILL.md" && p != f.Path:
+		case d.Name() == "SKILL.md" && p != real:
 			return fmt.Errorf("the skill folder contains another skill; remove it manually")
 		}
 		info, e := d.Info()

@@ -220,9 +220,13 @@ func (s *Server) fileState(f File) File {
 		f.Exists = true
 		f.Size = info.Size()
 	}
-	// Never edit a symlink through its alias, nor files outside the user's home.
-	if resolved, e := filepath.EvalSymlinks(f.Path); e == nil && (!within(s.Home, resolved) || resolved != f.Path) {
+	// Files reached through links are edited at their real location, which
+	// must be inside home; the links themselves are left in place.
+	f.Target = ""
+	if real, e := s.realPath(f.Path); e != nil {
 		f.Editable = false
+	} else if real != f.Path {
+		f.Target = real
 	}
 	return f
 }

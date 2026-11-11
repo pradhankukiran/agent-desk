@@ -7,6 +7,7 @@ import {
   rmSync,
   readdirSync,
   existsSync,
+  symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -242,6 +243,28 @@ test("JSON settings changed by another program are merged on save", async ({
     readFileSync(join(home, ".claude/settings.json"), "utf8"),
   );
   expect(saved).toEqual({ cleanupPeriodDays: 30, theme: "light" });
+});
+test("files reached through a linked folder can be edited", async ({
+  page,
+}) => {
+  file("dotfiles/grok/config.toml", 'model = "a"\n');
+  rmSync(join(home, ".grok"), { recursive: true, force: true });
+  symlinkSync(join(home, "dotfiles/grok"), join(home, ".grok"));
+  await page.goto(link);
+  await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page
+    .locator(".file-row")
+    .filter({ hasText: ".grok/config.toml" })
+    .click();
+  await expect(page.getByText("This path is a link.")).toBeVisible();
+  await page.locator(".cm-content").fill('model = "b"\n');
+  await page.getByRole("button", { name: "Review changes" }).click();
+  await page.getByRole("button", { name: "Confirm save" }).click();
+  await expect(page.getByRole("status")).toContainText("Saved.");
+  expect(readFileSync(join(home, "dotfiles/grok/config.toml"), "utf8")).toBe(
+    'model = "b"\n',
+  );
 });
 test("invalid configuration and stale revisions cannot overwrite files", async ({
   page,

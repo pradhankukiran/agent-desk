@@ -81,7 +81,7 @@ The adapters inspect known local paths and storage formats. The paths below are 
 - **Disabled** reflects an explicit disable value recognized by the adapter.
 - **Not created** identifies a known configuration or instruction file that can be created through the editor.
 
-Shared skills may appear under multiple agents. Bundled, installed-plugin, managed, and linked files are generally view-only. Supported user and project files can be edited.
+Shared skills may appear under multiple agents. Bundled, installed-plugin, and managed files are generally view-only. Supported user and project files can be edited, including through symbolic links whose real location is inside your home folder, such as a linked dotfiles folder.
 
 ### Agy conversation history
 
@@ -121,7 +121,7 @@ Agent Desk can read conversation text and edit real configuration files. Treat i
 - Every API request requires a random token generated at startup.
 - API requests from foreign browser origins are rejected; accepted hostnames are restricted to localhost.
 - File operations use catalog identifiers rather than arbitrary file paths.
-- Writes outside the selected home and writes through symbolic links are rejected.
+- Writes outside the selected home are rejected. Edits through a symbolic link are saved to its real location inside home and leave the link in place; files that are themselves links cannot be removed here.
 - Session databases are opened in read-only mode.
 - The app does not intentionally select credential-only files such as `auth.json`. Configuration and session text can still contain credentials or other private information.
 - The app serves local assets and does not send configuration or conversation data to an external service.
