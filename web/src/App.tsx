@@ -20,6 +20,14 @@ const accents: Record<string, string> = {
   grok: "#787087",
   agy: "#558769",
 };
+// Shown in the sidebar until the catalog loads.
+const defaultAgents = [
+  { id: "codex", name: "Codex" },
+  { id: "claude", name: "Claude Code" },
+  { id: "opencode", name: "OpenCode" },
+  { id: "grok", name: "Grok" },
+  { id: "agy", name: "Agy" },
+];
 const tabs = ["Overview", "Extensions", "Instructions", "Settings", "Sessions"];
 export default function App() {
   const [catalog, setCatalog] = useState<Catalog>();
@@ -50,6 +58,7 @@ export default function App() {
   const [customProject, setCustomProject] = useState(false);
   const [projectDraft, setProjectDraft] = useState("");
   const agent = catalog?.agents.find((a) => a.id === agentID);
+  const navAgents = catalog?.agents || defaultAgents;
   const dirty = !!opened && draft !== opened.content;
   useEffect(() => {
     let active = true;
@@ -309,18 +318,10 @@ export default function App() {
           </div>
         </div>
         <div className="nav-caption">
-          AGENTS <span>05</span>
+          AGENTS <span>{String(navAgents.length).padStart(2, "0")}</span>
         </div>
         <nav>
-          {(
-            catalog?.agents || [
-              { id: "codex", name: "Codex" },
-              { id: "claude", name: "Claude Code" },
-              { id: "opencode", name: "OpenCode" },
-              { id: "grok", name: "Grok" },
-              { id: "agy", name: "Agy" },
-            ]
-          ).map((a) => (
+          {navAgents.map((a) => (
             <button
               key={a.id}
               className={"agent-nav " + (a.id === agentID ? "selected" : "")}
