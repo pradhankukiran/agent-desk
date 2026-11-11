@@ -4,7 +4,7 @@
 
 Browse and edit the configuration behind Codex, Claude Code, OpenCode, Grok, and Agy from one browser interface. Inspect extensions, maintain instruction files, and explore conversation history while keeping each agent's native files as the source of truth.
 
-Agent Desk runs as a Go executable with an embedded React interface. It binds to localhost and opens your browser. No cloud account, hosted backend, or agent API key is required.
+Agent Desk runs as a Go executable with an embedded React interface built on GitHub's [Primer](https://primer.style) design system. It binds to localhost, opens your browser, and follows your system's light or dark mode. No cloud account, hosted backend, or agent API key is required.
 
 **Status:** Early release, developed and tested on Linux through WSL. Other platforms and agent versions have not been verified.
 
@@ -51,14 +51,15 @@ The final command assumes `~/.local/bin` is already on your `PATH`.
 
 | Area | Available now |
 | --- | --- |
-| Agent overview | Installation detection through `PATH`, configuration inventory, and extension counts. |
-| Project scope | User configuration alongside known project configuration and instruction files. |
-| Extensions | MCP server declarations, skills, plugins, hooks, agent definitions, commands, and rules in supported locations. |
-| Instructions | View, create, edit, and remove supported instruction files, including `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`. |
-| Configuration | Edit original JSON, JSONC, and TOML files with syntax validation and review before saving. |
-| Skills | Create a skill, edit its `SKILL.md`, or remove an editable skill definition. |
-| Sessions | Browse conversations, search titles and project paths, filter messages, and copy message text. |
-| Change protection | Revision checks, automatic backups, permission preservation, and reviewable undo of the last save. |
+| Agents | Switch agents from the header bar. Each shows whether it is installed on `PATH` and how many extensions were found. |
+| Project scope | Add a project's local files to the user configuration. The project menu suggests folders your agents have worked in and folders under `~/projects`. |
+| Files | Settings and instruction files in one list, with path, scope, size, and read-only status. Edit JSON, JSONC, TOML, and Markdown, including `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`. |
+| Extensions | MCP server declarations, skills, plugins, hooks, agent definitions, commands, and rules in supported locations, filterable by type. |
+| Skills | Create a skill, edit its `SKILL.md`, or remove a skill together with its folder. |
+| Editing | Files open in a side panel beside the list. Changes are validated and shown as a line-by-line comparison before saving. |
+| Sessions | Browse conversations by title and folder, filter messages across the whole conversation, load long conversations in pages, and copy message text. |
+| Change protection | Revision checks, merging of outside JSON changes, automatic backups, permission preservation, and reviewable undo of the last save. |
+| Keyboard | <kbd>/</kbd> focuses search; <kbd>Esc</kbd> closes the editor or a dialog. |
 
 MCP servers, plugins, and hooks can be configured by editing their source files. Agent Desk does not connect to MCP servers, run conversations, or install plugins.
 
@@ -89,19 +90,19 @@ Agy stores full conversation steps as binary payloads. Agent Desk reads the loca
 
 ## Everyday use
 
-1. Select an agent in the sidebar.
-2. Keep **User configuration** selected, or choose a project to include its local files.
-3. Open **Extensions**, **Instructions**, or **Settings** to inspect an item and its source path.
-4. Make changes in the editor, select **Review changes**, then **Confirm save**.
+1. Select an agent in the header bar.
+2. Keep **No project** selected, or choose a project to include its local files. Choose **Other folder…** to enter a folder that is not listed.
+3. Open **Files** or **Extensions** and select an item to open its source file in the side panel.
+4. Make changes, select **Review changes** to see the comparison, then **Confirm save**.
 5. Open **Sessions** to browse history and filter the messages in a selected conversation.
 
-Use **Refresh** to rescan configuration and reload session metadata. An already-open editor retains its snapshot; close and reopen it to load external changes.
+Use the reload button in the header to rescan configuration and session history. An already-open editor keeps its snapshot; close and reopen it to load outside changes. Saving a JSON file that another program changed in the meantime merges both sets of changes when they touch different settings.
 
 ### Command-line options
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `--port` | `7437` | Choose the listening port. Set `0` to select an available port. |
+| `--port` | `7437` | Require a specific port. Set `0` to select an available port. Without this option, a busy default port falls back to a free one. |
 | `--no-open` | `false` | Print the URL without opening a browser. |
 | `--home` | Current user's home | Inspect agent files under a different home directory. Use an absolute path. |
 
@@ -147,7 +148,7 @@ Backups may contain sensitive values. Revision checks reduce accidental overwrit
 ## Architecture
 
 ```text
-Browser: React + TypeScript + CodeMirror
+Browser: React + TypeScript + Primer + CodeMirror
                    │
               Local HTTP API
                    │
@@ -158,29 +159,37 @@ Browser: React + TypeScript + CodeMirror
       Native files / read-only SQLite
 ```
 
-The app does not create a separate configuration database. Existing agent files remain authoritative; application-owned state consists of backups.
+The app does not create a separate configuration database. Existing agent files remain authoritative; application-owned state consists of backups on disk and, while the app runs, the undo record and caches of the file inventory and session list.
 
 ```text
-main.go                        CLI, embedded assets, browser launch
+main.go                        CLI, embedded assets, browser launch, port fallback
 internal/desk/
+  app.go, models.go            Server state and API data types
   agents.go                    Agent-specific discovery locations
-  catalog.go                   File and extension inventory
+  catalog.go                   File and extension inventory, lookup cache
   config.go                    JSON / JSONC / TOML parsing
-  files.go                     Validation, revisions, backups, writes
+  files.go                     Validation, revisions, backups, links, writes
+  merge.go                     Merging JSON edits with outside changes
+  undo.go                      Undo of the last save
+  skills.go                    Skill folder checks and removal
   paths.go                     File identifiers and project boundaries
+  projects.go                  Project folder suggestions
   server.go                    HTTP routes and access controls
   messages.go                  Conversation text normalization
-  sessions_jsonl.go            Codex, Claude, and Grok history
+  sessions.go                  Session routes, paging, and project filter
+  sessions_jsonl.go            Codex, Claude, and Grok history and its cache
   sessions_sqlite.go           OpenCode history and Agy excerpts
 web/
-  src/App.tsx                  Agent workspace and editor flows
+  src/main.tsx                 Primer theme setup
+  src/App.tsx                  Header, tabs, lists, sessions, and editor panel
+  src/components.tsx           File rows, change comparison, message text
+  src/style.css                Layout on Primer design tokens
   src/api.ts                   Authenticated API client
   src/types.ts                 Interface data types
-  src/components.tsx           Shared file and empty-state views
   tests/app.spec.ts            Browser integration tests
 ```
 
-Go's standard HTTP library serves the API and compiled interface. CodeMirror supplies the browser editor. TOML, JSONC, and SQLite libraries handle the agents' storage formats.
+Go's standard HTTP library serves the API and compiled interface. Primer React supplies the interface components, design tokens, and Octicons. CodeMirror supplies the editor and change comparison. TOML, JSONC, SQLite, and `sjson` libraries handle the agents' storage formats.
 
 ## Development
 
@@ -216,9 +225,9 @@ CHROMIUM_PATH=/path/to/chromium make test-e2e
 
 If `/usr/bin/google-chrome` exists, the test configuration uses it as a local fallback. Otherwise, Playwright uses its installed Chromium.
 
-The browser suite starts the compiled app against a temporary fixture home. It checks agent navigation, instruction editing and review, undo, skill creation and removal, JSON merging, editing through linked folders, paged transcript viewing, invalid configuration, conflicting edits, and a narrow viewport. It does not edit your real agent configuration.
+The browser suite starts the compiled app against a temporary fixture home. It checks agent navigation, instruction editing and review, undo, skill creation and removal, JSON merging, editing through linked folders, paged transcript viewing, keyboard shortcuts, invalid configuration, conflicting edits, and a narrow viewport. It does not edit your real agent configuration.
 
-Backend tests cover configuration discovery, JSONL message parsing, both OpenCode database schemas, Agy excerpts, API access controls, read-only database access, backups, and path boundaries.
+Backend tests cover configuration discovery, JSONL message parsing and session titles, both OpenCode database schemas, Agy excerpts, API access controls, read-only database access, backups and their pruning, JSON merging, undo, skill validation and removal, symbolic links, project suggestions, caching, paging, and path boundaries.
 
 ### Contributing changes
 
@@ -235,6 +244,7 @@ For compatibility reports, include the agent version, operating system, file for
 - JSONL transcript reads stop after **64 MB** and display a truncation notice. A single JSONL record larger than **64 MB** is skipped and counted in the notice.
 - Conversations load 200 messages at a time, and the message filter searches the whole conversation. Messages longer than 20,000 characters are shortened until expanded.
 - File editing is limited to **4 MB** per file.
+- Undo covers the last save of each file and is lost when Agent Desk restarts; backups remain on disk.
 - Session-list search covers titles, project paths, and session IDs. Message filtering applies to the selected conversation; there is no global full-text conversation search.
 - Agent formats can change between releases. Support reflects the formats inspected during initial development, not a guarantee across every version.
 
