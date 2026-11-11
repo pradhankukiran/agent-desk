@@ -50,7 +50,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 		reply(w, 200, map[string]any{"agents": s.Catalog(p), "projects": projects, "home": s.Home})
 	})
 	mux.HandleFunc("GET /api/file", func(w http.ResponseWriter, r *http.Request) {
-		f, e := s.requestFile(r)
+		f, p, e := s.requestFile(r)
 		if e != nil {
 			failure(w, e)
 			return
@@ -64,12 +64,20 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
-		reply(w, 200, map[string]any{"file": f, "content": string(b), "revision": revision(f.Path, b)})
+		out := map[string]any{"file": f, "content": string(b), "revision": revision(f.Path, b)}
+		if f.Kind == "skill" && f.Exists && f.Editable {
+			if _, n, e := s.skillFolder(f, p); e != nil {
+				out["skillProblem"] = e.Error()
+			} else {
+				out["skillFiles"] = n
+			}
+		}
+		reply(w, 200, out)
 	})
 	mux.HandleFunc("PUT /api/file", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		f, e := s.requestFile(r)
+		f, _, e := s.requestFile(r)
 		if e != nil {
 			failure(w, e)
 			return
@@ -89,7 +97,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 	mux.HandleFunc("DELETE /api/file", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		f, e := s.requestFile(r)
+		f, p, e := s.requestFile(r)
 		if e != nil {
 			failure(w, e)
 			return
@@ -103,7 +111,12 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
-		backup, e := s.save(f, nil, body.Revision, true)
+		var backup string
+		if f.Kind == "skill" {
+			backup, e = s.removeSkill(f, p, body.Revision)
+		} else {
+			backup, e = s.save(f, nil, body.Revision, true)
+		}
 		if e != nil {
 			failure(w, e)
 			return
@@ -201,18 +214,19 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 
-func (s *Server) requestFile(r *http.Request) (File, error) {
+// requestFile finds the file named by the request and the resolved project.
+func (s *Server) requestFile(r *http.Request) (File, string, error) {
 	p, e := s.project(r.URL.Query().Get("project"))
 	if e != nil {
-		return File{}, e
+		return File{}, "", e
 	}
 	f, e := s.lookup(p, r.URL.Query().Get("id"))
 	if e != nil {
-		return f, e
+		return f, "", e
 	}
 	resolved, err := filepath.EvalSymlinks(f.Path)
 	if err == nil && !within(s.Home, resolved) {
-		return File{}, fmt.Errorf("file resolves outside home directory")
+		return File{}, "", fmt.Errorf("file resolves outside home directory")
 	}
-	return f, nil
+	return f, p, nil
 }

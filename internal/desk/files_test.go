@@ -74,7 +74,7 @@ func TestNoExternalSymlinkRead(t *testing.T) {
 	path := filepath.Join(s.Home, ".codex/AGENTS.md")
 	os.Symlink(outside, path)
 	r := httptest.NewRequest(http.MethodGet, "http://localhost/api/file?id="+fileID(path), nil)
-	if _, e := s.requestFile(r); e == nil {
+	if _, _, e := s.requestFile(r); e == nil {
 		t.Fatal("external symlink readable")
 	}
 }

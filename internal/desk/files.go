@@ -69,6 +69,17 @@ func (s *Server) safeWrite(path string) error {
 	return nil
 }
 
+// backupDir returns the backup folder, creating it if needed.
+func (s *Server) backupDir() (string, error) {
+	dir := filepath.Join(s.Home, ".local/state/agent-desk/backups")
+	if e := s.safeWrite(dir); e != nil {
+		return "", e
+	}
+	return dir, os.MkdirAll(dir, 0700)
+}
+
+func stamp() string { return time.Now().UTC().Format("20060102T150405.000000000") }
+
 func (s *Server) save(f File, content []byte, expected string, remove bool) (string, error) {
 	if !f.Editable {
 		return "", fmt.Errorf("this file is read-only")
@@ -103,14 +114,11 @@ func (s *Server) save(f File, content []byte, expected string, remove bool) (str
 			return "", e
 		}
 		mode = info.Mode().Perm()
-		dir := filepath.Join(s.Home, ".local/state/agent-desk/backups")
-		if e = s.safeWrite(dir); e != nil {
+		dir, e := s.backupDir()
+		if e != nil {
 			return "", e
 		}
-		if e = os.MkdirAll(dir, 0700); e != nil {
-			return "", e
-		}
-		backup = filepath.Join(dir, time.Now().UTC().Format("20060102T150405.000000000")+"-"+fileID(f.Path)+".json")
+		backup = filepath.Join(dir, stamp()+"-"+fileID(f.Path)+".json")
 		data, _ := json.Marshal(map[string]string{"path": f.Path, "content": string(old), "savedAt": time.Now().UTC().Format(time.RFC3339)})
 		if e = os.WriteFile(backup, data, 0600); e != nil {
 			return "", e

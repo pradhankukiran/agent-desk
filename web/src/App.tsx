@@ -188,8 +188,17 @@ export default function App() {
     }
   }
   async function remove() {
-    if (!opened || !window.confirm("Remove this file? A backup will be saved."))
+    if (!opened) return;
+    const skill = opened.file.kind === "skill";
+    if (opened.skillProblem) {
+      setError("This skill cannot be removed here: " + opened.skillProblem);
       return;
+    }
+    const n = opened.skillFiles ?? 1;
+    const question = skill
+      ? `Remove this skill and its folder (${n} ${n === 1 ? "file" : "files"})? A backup copy will be saved.`
+      : "Remove this file? A backup will be saved.";
+    if (!window.confirm(question)) return;
     setBusy(true);
     setError("");
     try {
@@ -199,7 +208,8 @@ export default function App() {
       });
       setOpened(undefined);
       setNotice(
-        "File removed. Its contents are saved in ~/.local/state/agent-desk/backups.",
+        (skill ? "Skill removed." : "File removed.") +
+          " A copy is saved in ~/.local/state/agent-desk/backups.",
       );
       setReload((v) => v + 1);
     } catch (e) {
@@ -862,7 +872,9 @@ export default function App() {
                           disabled={busy}
                           onClick={remove}
                         >
-                          Remove file
+                          {opened.file.kind === "skill"
+                            ? "Remove skill"
+                            : "Remove file"}
                         </button>
                       )}
                     {previous !== undefined && (

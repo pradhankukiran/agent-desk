@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   readdirSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -151,6 +152,17 @@ test("browse agents, review and save instructions, create a skill, read a sessio
     readFileSync(join(home, ".codex/skills/check-work/SKILL.md"), "utf8"),
   ).toContain("Use when checking a change");
   await page.getByRole("button", { name: "Close editor" }).click();
+  file(".codex/skills/check-work/notes.md", "Extra notes\n");
+  await page.locator(".extension-card").filter({ hasText: "check-work" }).click();
+  let question = "";
+  page.once("dialog", (d) => {
+    question = d.message();
+    d.accept();
+  });
+  await page.getByRole("button", { name: "Remove skill" }).click();
+  await expect(page.getByRole("status")).toContainText("Skill removed.");
+  expect(question).toContain("2 files");
+  expect(existsSync(join(home, ".codex/skills/check-work"))).toBe(false);
   await page.getByRole("tab", { name: "Sessions" }).click();
   await page
     .locator(".session-row")

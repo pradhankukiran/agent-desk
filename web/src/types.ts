@@ -27,7 +27,13 @@ export type Agent = {
   warnings: string[];
 };
 export type Catalog = { agents: Agent[]; projects: string[]; home: string };
-export type OpenFile = { file: FileItem; content: string; revision: string };
+export type OpenFile = {
+  file: FileItem;
+  content: string;
+  revision: string;
+  skillFiles?: number;
+  skillProblem?: string;
+};
 export type Session = {
   id: string;
   agent: string;
