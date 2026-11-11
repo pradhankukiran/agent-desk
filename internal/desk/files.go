@@ -111,8 +111,10 @@ func (s *Server) write(f File, content []byte, expected string, remove, validate
 			return "", fmt.Errorf("invalid configuration: %w", e)
 		}
 	}
-	if validate && !remove && f.Kind == "skill" && (!strings.HasPrefix(string(content), "---\n") || !strings.Contains(string(content), "description:")) {
-		return "", fmt.Errorf("skills need YAML frontmatter with a description")
+	if validate && !remove && f.Kind == "skill" {
+		if e := checkSkill(content); e != nil {
+			return "", e
+		}
 	}
 	mode := fs.FileMode(0600)
 	backup := ""
@@ -175,4 +177,49 @@ func (s *Server) write(f File, content []byte, expected string, remove, validate
 		return "", errConflict
 	}
 	return backup, os.Rename(tmp.Name(), f.Path)
+}
+
+// checkSkill requires a SKILL.md to start with a YAML frontmatter block that
+// has a non-empty top-level description. Both LF and CRLF line endings work.
+func checkSkill(content []byte) error {
+	text := strings.TrimPrefix(string(content), "\ufeff")
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	if len(lines) == 0 || strings.TrimRight(lines[0], " \t") != "---" {
+		return fmt.Errorf("skills must start with a frontmatter block opened by a --- line")
+	}
+	end := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimRight(lines[i], " \t") == "---" {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return fmt.Errorf("the skill frontmatter block needs a closing --- line")
+	}
+	header := lines[1:end]
+	for i, line := range header {
+		value, ok := strings.CutPrefix(line, "description:")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		switch strings.TrimRight(value, "+-") {
+		case "", "|", ">":
+			// The text is on the following indented lines.
+			for _, next := range header[i+1:] {
+				if next != "" && next[0] != ' ' && next[0] != '\t' {
+					break
+				}
+				if strings.TrimSpace(next) != "" {
+					return nil
+				}
+			}
+		case `""`, `''`:
+		default:
+			return nil
+		}
+		return fmt.Errorf("the skill description is empty")
+	}
+	return fmt.Errorf("the skill frontmatter needs a description")
 }
