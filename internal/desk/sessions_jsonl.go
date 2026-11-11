@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -59,6 +60,20 @@ func scanLines(path string, limit int64, fn func(map[string]any) bool) (int, err
 	}
 }
 
+// taggedBlock matches blocks such as <pasted_content ...>...</pasted_content>
+// or <system-reminder>...</system-reminder> that agents add around prompts.
+var taggedBlock = regexp.MustCompile(`(?s)<([A-Za-z][\w-]*)[^<>]*>.*?</[A-Za-z][\w-]*>`)
+
+// titleText returns the words a person typed in a prompt, without pasted or
+// injected blocks, or "" if the prompt is only such content.
+func titleText(text string) string {
+	t := strings.TrimSpace(taggedBlock.ReplaceAllString(text, " "))
+	if t == "" || strings.HasPrefix(t, "<") || strings.HasPrefix(t, "# AGENTS.md") {
+		return ""
+	}
+	return t
+}
+
 // sessionFile is what the session list needs from one history file. It is
 // cached and reused until the file's size or modification time changes.
 type sessionFile struct {
@@ -93,8 +108,10 @@ func readSessionFile(agent, p string, info os.FileInfo) sessionFile {
 			item.Project = cwd
 		}
 		for _, m := range normalize(agent, d) {
-			if m.Role == "user" && item.Title == base && !strings.HasPrefix(m.Text, "# AGENTS.md") && !strings.HasPrefix(m.Text, "<") {
-				item.Title = short(m.Text, 120)
+			if m.Role == "user" && item.Title == base {
+				if title := titleText(m.Text); title != "" {
+					item.Title = short(title, 120)
+				}
 			}
 		}
 		// Claude records the current folder on every line and it can change

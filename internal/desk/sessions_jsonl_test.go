@@ -186,3 +186,20 @@ func TestTranscriptPaging(t *testing.T) {
 		t.Fatalf("filtered: total %d %+v", found.Total, found.Messages)
 	}
 }
+
+func TestTitleText(t *testing.T) {
+	cases := map[string]string{
+		"plain question": "plain question",
+		"\n\n<pasted_content id=\"1\">\nJob post\n</pasted_content>\n\nthis is a job, tell me": "this is a job, tell me",
+		"<system-reminder>rules</system-reminder>":                                             "",
+		"  <command-name>/init</command-name>":                                                 "",
+		"# AGENTS.md instructions for /x":                                                      "",
+		"<unclosed tag and text":                                                               "",
+		"compare a < b and c > d":                                                              "compare a < b and c > d",
+	}
+	for in, want := range cases {
+		if got := titleText(in); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+}
