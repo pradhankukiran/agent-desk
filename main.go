@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/pradhankukiran/agent-desk/internal/desk"
@@ -39,6 +40,11 @@ func main() {
 		log.Fatal(e)
 	}
 	listener, e := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
+	if errors.Is(e, syscall.EADDRINUSE) && !portSet() {
+		// The default port is busy; use any free port instead.
+		fmt.Printf("Port %d is in use; choosing another port.\n", *port)
+		listener, e = net.Listen("tcp", "127.0.0.1:0")
+	}
 	if e != nil {
 		log.Fatal(e)
 	}
@@ -69,4 +75,11 @@ func main() {
 	if e = server.Serve(listener); e != nil && e != http.ErrServerClosed {
 		log.Fatal(e)
 	}
+}
+
+// portSet reports whether --port was given explicitly.
+func portSet() bool {
+	set := false
+	flag.Visit(func(f *flag.Flag) { set = set || f.Name == "port" })
+	return set
 }

@@ -31,7 +31,7 @@ make build
 ./bin/agent-desk
 ```
 
-Agent Desk starts at `http://localhost:7437` and attempts to open your browser. If automatic opening is unavailable, use the full URL printed in the terminal. Press **Ctrl+C** to stop the server.
+Agent Desk starts at `http://localhost:7437` and attempts to open your browser. If that port is in use, it chooses a free port and prints the new address; pass `--port` to require a specific port. If automatic opening is unavailable, use the full URL printed in the terminal. Press **Ctrl+C** to stop the server.
 
 The printed URL includes an access token in its fragment. The interface removes that fragment after loading and keeps the token in the current browser tab's session storage. Use the newly printed URL after restarting the server.
 
