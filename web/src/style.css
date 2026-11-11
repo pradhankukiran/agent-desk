@@ -958,35 +958,51 @@ dd:last-child {
 .editor-dialog > .alert {
   margin: 8px 24px;
 }
-.review-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.review-diff {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.review-diff > div:last-child {
   flex: 1;
   min-height: 0;
   overflow: auto;
 }
-.review-grid > div {
-  padding: 20px;
-  min-width: 0;
+.review-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #e8e6dc;
+  background: #fafcf7;
+  font-size: 11px;
+  color: #6d7d60;
 }
-.review-grid > div:first-child {
-  background: #fcf5f1;
-  border-right: 1px solid #e8e6dc;
-}
-.review-grid > div:last-child {
-  background: #f4f9ef;
-}
-.review-grid h3 {
+.review-summary h3 {
+  margin: 0;
   font-size: 11px;
   text-transform: uppercase;
   color: #869674;
 }
-.review-grid pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font:
-    12px/1.7 ui-monospace,
-    monospace;
+.review-summary.removal {
+  flex: 1;
+  align-items: flex-start;
+  padding: 20px;
+}
+.review-diff .cm-changedLine {
+  background: #e8f5df;
+}
+.review-diff .cm-changedText {
+  background: #c9e8b5;
+}
+.review-diff .cm-deletedChunk {
+  background: #fbe9e3;
+}
+.review-diff .cm-deletedChunk del {
+  text-decoration: none;
+  background: #f4cbbd;
 }
 .small-dialog {
   width: 440px;
@@ -1213,4 +1229,8 @@ dd:last-child {
     float: none;
     display: block;
   }
+}
+.review-diff > .cm-theme,
+.review-diff .cm-editor {
+  height: 100%;
 }

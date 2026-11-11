@@ -128,6 +128,13 @@ test("browse agents, review and save instructions, create a skill, read a sessio
     .locator(".cm-content")
     .fill("# Updated instructions\n\nRun the focused checks.\n");
   await page.getByRole("button", { name: "Review changes" }).click();
+  // The review marks removed and added lines.
+  await expect(page.getByText("1 changed section")).toBeVisible();
+  await expect(page.locator(".cm-deletedChunk")).toContainText(
+    "Keep changes focused.",
+  );
+  await expect(page.locator(".cm-changedLine").first()).toBeVisible();
+  await page.screenshot({ path: "test-results/review.png" });
   expect(readFileSync(join(home, ".codex/AGENTS.md"), "utf8")).toContain(
     "Keep changes focused",
   );

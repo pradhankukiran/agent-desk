@@ -7,7 +7,7 @@ import { StreamLanguage } from "@codemirror/language";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 import type { Catalog, OpenFile, Session, Transcript } from "./types";
 import { api, query } from "./api";
-import { FileRow, Empty } from "./components";
+import { FileRow, Empty, Changes } from "./components";
 
 const glyphs: Record<string, string> = {
   codex: "C",
@@ -886,31 +886,29 @@ export default function App() {
                   </div>
                 )}
                 {undoReview && opened.undo ? (
-                  <div className="review-grid">
-                    <div>
-                      <h3>Current file</h3>
-                      <pre>{opened.content}</pre>
-                    </div>
-                    <div>
+                  opened.undo.removes ? (
+                    <div className="review-summary removal">
                       <h3>After undo</h3>
-                      <pre>
-                        {opened.undo.removes
-                          ? "(The file will be removed, because the last save created it.)"
-                          : opened.undo.content || "(Empty file)"}
-                      </pre>
+                      <span>
+                        The file will be removed, because the last save created
+                        it.
+                      </span>
                     </div>
-                  </div>
+                  ) : (
+                    <Changes
+                      title="After undo"
+                      before={opened.content}
+                      after={opened.undo.content}
+                      language={languageFor(opened.file.name)}
+                    />
+                  )
                 ) : review ? (
-                  <div className="review-grid">
-                    <div>
-                      <h3>Current file</h3>
-                      <pre>{opened.content || "(New file)"}</pre>
-                    </div>
-                    <div>
-                      <h3>Proposed file</h3>
-                      <pre>{draft}</pre>
-                    </div>
-                  </div>
+                  <Changes
+                    title={opened.file.exists ? "Changes to save" : "New file"}
+                    before={opened.content}
+                    after={draft}
+                    language={languageFor(opened.file.name)}
+                  />
                 ) : (
                   <div className="code-editor">
                     <CodeMirror
