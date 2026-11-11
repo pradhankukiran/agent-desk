@@ -49,4 +49,6 @@ export type Transcript = {
   messages: { role: string; text: string; time?: string }[];
   note: string;
   truncated: boolean;
+  total: number;
+  offset: number;
 };

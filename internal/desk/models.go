@@ -54,4 +54,6 @@ type Transcript struct {
 	Messages  []Message `json:"messages"`
 	Note      string    `json:"note"`
 	Truncated bool      `json:"truncated"`
+	Total     int       `json:"total"`  // matching messages before paging
+	Offset    int       `json:"offset"` // index of the first returned message
 }

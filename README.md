@@ -216,7 +216,7 @@ CHROMIUM_PATH=/path/to/chromium make test-e2e
 
 If `/usr/bin/google-chrome` exists, the test configuration uses it as a local fallback. Otherwise, Playwright uses its installed Chromium.
 
-The browser suite starts the compiled app against a temporary fixture home. It checks agent navigation, instruction editing, skill creation, transcript viewing, invalid configuration, conflicting edits, and a narrow viewport. It does not edit your real agent configuration.
+The browser suite starts the compiled app against a temporary fixture home. It checks agent navigation, instruction editing and review, undo, skill creation and removal, JSON merging, editing through linked folders, paged transcript viewing, invalid configuration, conflicting edits, and a narrow viewport. It does not edit your real agent configuration.
 
 Backend tests cover configuration discovery, JSONL message parsing, both OpenCode database schemas, Agy excerpts, API access controls, read-only database access, backups, and path boundaries.
 
@@ -231,8 +231,9 @@ For compatibility reports, include the agent version, operating system, file for
 - Inventory is based on known paths. It does not fully resolve runtime flags, environment overrides, managed remote settings, compatibility imports, custom skill directories, or plugin activation.
 - Project discovery covers known files at the selected root. It does not recursively discover every nested instruction file or calculate inherited instruction precedence.
 - Plugin installation, marketplace browsing, one-click extension toggles, and in-app agent execution are not implemented.
-- Most transcript views show conversation text and omit tool events, system messages, and attachments. Agy uses the excerpt format described above.
-- JSONL transcript reads stop after **64 MB** and display a truncation notice. Individual JSONL records must fit the reader's **8 MB** scanner limit.
+- Most transcript views show conversation text and omit tool events, system messages, and attachments. Model reasoning, where stored, appears in a collapsed **Thinking** box. Agy uses the excerpt format described above.
+- JSONL transcript reads stop after **64 MB** and display a truncation notice. A single JSONL record larger than **64 MB** is skipped and counted in the notice.
+- Conversations load 200 messages at a time, and the message filter searches the whole conversation. Messages longer than 20,000 characters are shortened until expanded.
 - File editing is limited to **4 MB** per file.
 - Session-list search covers titles, project paths, and session IDs. Message filtering applies to the selected conversation; there is no global full-text conversation search.
 - Agent formats can change between releases. Support reflects the formats inspected during initial development, not a guarantee across every version.

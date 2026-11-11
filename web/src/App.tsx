@@ -7,7 +7,7 @@ import { StreamLanguage } from "@codemirror/language";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 import type { Catalog, OpenFile, Session, Transcript } from "./types";
 import { api, query } from "./api";
-import { FileRow, Empty, Changes } from "./components";
+import { FileRow, Empty, Changes, MessageText } from "./components";
 
 const glyphs: Record<string, string> = {
   codex: "C",
@@ -65,6 +65,8 @@ export default function App() {
   const [sessionBusy, setSessionBusy] = useState(false);
   const [sessionWarnings, setSessionWarnings] = useState<string[]>([]);
   const [transcriptSearch, setTranscriptSearch] = useState("");
+  const [transcriptQuery, setTranscriptQuery] = useState("");
+  const [moreBusy, setMoreBusy] = useState(false);
   const [newSkill, setNewSkill] = useState(false);
   const [skillName, setSkillName] = useState("");
   const [skillDescription, setSkillDescription] = useState("");
@@ -122,11 +124,24 @@ export default function App() {
       active = false;
     };
   }, [agentID, project, tab, reload]);
+  // Filter on the server shortly after typing stops.
+  useEffect(() => {
+    const t = setTimeout(() => setTranscriptQuery(transcriptSearch), 250);
+    return () => clearTimeout(t);
+  }, [transcriptSearch]);
+  const transcriptPath = (offset: number) =>
+    "session?" +
+    query({
+      agent: agentID,
+      id: session?.id || "",
+      q: transcriptQuery,
+      offset: String(offset),
+    });
   useEffect(() => {
     if (!session) return;
     let active = true;
     setTranscript(undefined);
-    api<Transcript>("session?" + query({ agent: agentID, id: session.id }))
+    api<Transcript>(transcriptPath(0))
       .then((d) => {
         if (active) setTranscript(d);
       })
@@ -136,7 +151,22 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [session, agentID]);
+  }, [session, agentID, transcriptQuery]);
+  async function loadMoreMessages() {
+    if (!transcript) return;
+    const shown = transcript;
+    setMoreBusy(true);
+    try {
+      const d = await api<Transcript>(transcriptPath(shown.messages.length));
+      setTranscript((t) =>
+        t === shown ? { ...d, messages: [...t.messages, ...d.messages] } : t,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setMoreBusy(false);
+    }
+  }
   function mayLeave() {
     return !dirty || window.confirm("Discard your unsaved changes?");
   }
@@ -713,6 +743,7 @@ export default function App() {
                         onClick={() => {
                           setSession(s);
                           setTranscriptSearch("");
+                          setTranscriptQuery("");
                         }}
                       >
                         <strong>{s.title}</strong>
@@ -754,61 +785,77 @@ export default function App() {
                           <div className="panel-note">
                             {transcript.note || "Stored conversation text."}
                           </div>
-                          {transcript.messages.length === 0 && (
-                            <Empty
-                              title="No readable messages"
-                              text="This session has no text available in the supported storage format."
-                            />
-                          )}
-                          {transcript.messages
-                            .filter((m) =>
-                              m.text
-                                .toLowerCase()
-                                .includes(transcriptSearch.toLowerCase()),
-                            )
-                            .map((m, i) => {
-                              const copy = (
+                          {transcript.messages.length === 0 &&
+                            (transcriptQuery ? (
+                              <Empty
+                                title="No matching messages"
+                                text="Try different words."
+                              />
+                            ) : (
+                              <Empty
+                                title="No readable messages"
+                                text="This session has no text available in the supported storage format."
+                              />
+                            ))}
+                          {transcript.messages.map((m, i) => {
+                            const copy = (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  navigator.clipboard
+                                    .writeText(m.text)
+                                    .then(() => setNotice("Message copied."))
+                                    .catch(() =>
+                                      setError(
+                                        "Clipboard access is unavailable.",
+                                      ),
+                                    );
+                                }}
+                              >
+                                Copy
+                              </button>
+                            );
+                            return m.role === "thinking" ? (
+                              <details
+                                className="message thinking"
+                                key={i}
+                                open={transcriptQuery !== ""}
+                              >
+                                <summary className="message-role">
+                                  <span>Thinking</span>
+                                  {copy}
+                                </summary>
+                                <MessageText text={m.text} />
+                              </details>
+                            ) : (
+                              <article className={"message " + m.role} key={i}>
+                                <div className="message-role">
+                                  {m.role}
+                                  {copy}
+                                </div>
+                                <MessageText text={m.text} />
+                              </article>
+                            );
+                          })}
+                          {transcript.total > 0 && (
+                            <div className="transcript-more">
+                              Showing {transcript.messages.length} of{" "}
+                              {transcript.total}{" "}
+                              {transcriptQuery
+                                ? "matching messages"
+                                : "messages"}
+                              {transcript.messages.length <
+                                transcript.total && (
                                 <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    navigator.clipboard
-                                      .writeText(m.text)
-                                      .then(() => setNotice("Message copied."))
-                                      .catch(() =>
-                                        setError(
-                                          "Clipboard access is unavailable.",
-                                        ),
-                                      );
-                                  }}
+                                  className="button secondary"
+                                  disabled={moreBusy}
+                                  onClick={loadMoreMessages}
                                 >
-                                  Copy
+                                  {moreBusy ? "Loading…" : "Show more"}
                                 </button>
-                              );
-                              return m.role === "thinking" ? (
-                                <details
-                                  className="message thinking"
-                                  key={i}
-                                  open={transcriptSearch !== ""}
-                                >
-                                  <summary className="message-role">
-                                    <span>Thinking</span>
-                                    {copy}
-                                  </summary>
-                                  <pre>{m.text}</pre>
-                                </details>
-                              ) : (
-                                <article
-                                  className={"message " + m.role}
-                                  key={i}
-                                >
-                                  <div className="message-role">
-                                    {m.role}
-                                    {copy}
-                                  </div>
-                                  <pre>{m.text}</pre>
-                                </article>
-                              );
-                            })}
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
                     </>

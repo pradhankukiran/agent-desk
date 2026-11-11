@@ -1234,3 +1234,12 @@ dd:last-child {
 .review-diff .cm-editor {
   height: 100%;
 }
+.transcript-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px;
+  font-size: 11px;
+  color: #799364;
+}

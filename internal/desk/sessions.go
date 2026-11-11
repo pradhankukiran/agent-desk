@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -100,6 +101,35 @@ func (s *Server) sessionsHandler(w http.ResponseWriter, r *http.Request) {
 	reply(w, 200, map[string]any{"sessions": filtered, "warnings": warnings})
 }
 
+const (
+	defaultPage = 200
+	maxPage     = 1000
+)
+
+// page filters a transcript's messages by the q parameter and returns the
+// limit messages starting at offset, so large conversations load in parts.
+func page(t Transcript, q url.Values) Transcript {
+	if query := strings.ToLower(q.Get("q")); query != "" {
+		kept := []Message{}
+		for _, m := range t.Messages {
+			if strings.Contains(strings.ToLower(m.Text), query) {
+				kept = append(kept, m)
+			}
+		}
+		t.Messages = kept
+	}
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	limit, e := strconv.Atoi(q.Get("limit"))
+	if e != nil || limit <= 0 {
+		limit = defaultPage
+	}
+	limit = min(limit, maxPage)
+	t.Total = len(t.Messages)
+	t.Offset = min(max(offset, 0), t.Total)
+	t.Messages = t.Messages[t.Offset:min(t.Offset+limit, t.Total)]
+	return t
+}
+
 func (s *Server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 	items, _, e := s.listSessions(r.URL.Query().Get("agent"))
 	if e != nil {
@@ -113,7 +143,7 @@ func (s *Server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 				failure(w, e)
 				return
 			}
-			reply(w, 200, t)
+			reply(w, 200, page(t, r.URL.Query()))
 			return
 		}
 	}

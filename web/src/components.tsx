@@ -1,3 +1,4 @@
+import { useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import type { Extension } from "@codemirror/state";
 import { Text } from "@codemirror/state";
@@ -84,5 +85,22 @@ export function Changes({
         ]}
       />
     </div>
+  );
+}
+
+const longMessage = 20000;
+
+// MessageText shows a message, shortening very long ones until expanded so a
+// single huge entry does not freeze the page.
+export function MessageText({ text }: { text: string }) {
+  const [full, setFull] = useState(false);
+  if (full || text.length <= longMessage) return <pre>{text}</pre>;
+  return (
+    <>
+      <pre>{text.slice(0, longMessage)}…</pre>
+      <button className="text-button" onClick={() => setFull(true)}>
+        Show full message ({text.length.toLocaleString()} characters)
+      </button>
+    </>
   );
 }

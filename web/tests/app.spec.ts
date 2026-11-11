@@ -108,9 +108,7 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await expect(page.locator(".nav-caption")).toHaveText("AGENTS 05");
   for (const name of ["Claude Code", "OpenCode", "Grok", "Agy", "Codex"]) {
     await page.locator(".agent-nav").filter({ hasText: name }).click();
-    await expect(
-      page.getByRole("heading", { name, level: 1 }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
   }
   await page.getByRole("tab", { name: "Extensions" }).click();
   await expect(
@@ -178,7 +176,10 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   ).toContain("Use when checking a change");
   await page.getByRole("button", { name: "Close editor" }).click();
   file(".codex/skills/check-work/notes.md", "Extra notes\n");
-  await page.locator(".extension-card").filter({ hasText: "check-work" }).click();
+  await page
+    .locator(".extension-card")
+    .filter({ hasText: "check-work" })
+    .click();
   let question = "";
   page.once("dialog", (d) => {
     question = d.message();
@@ -272,6 +273,51 @@ test("files reached through a linked folder can be edited", async ({
   expect(readFileSync(join(home, "dotfiles/grok/config.toml"), "utf8")).toBe(
     'model = "b"\n',
   );
+});
+test("long conversations load in pages and huge messages are shortened", async ({
+  page,
+}) => {
+  const line = (role: string, text: string) =>
+    JSON.stringify({
+      type: "response_item",
+      payload: {
+        type: "message",
+        role,
+        content: [
+          { type: role === "user" ? "input_text" : "output_text", text },
+        ],
+      },
+    }) + "\n";
+  let content =
+    JSON.stringify({
+      type: "session_meta",
+      payload: { id: "long", cwd: home },
+    }) +
+    "\n" +
+    line("user", "Long conversation start");
+  for (let i = 1; i < 249; i++)
+    content += line("assistant", `Reply number ${i}`);
+  content += line("assistant", "x".repeat(30000));
+  file(".codex/sessions/2026/01/02/long.jsonl", content);
+  await page.goto(link);
+  await page.getByRole("tab", { name: "Sessions" }).click();
+  await page
+    .locator(".session-row")
+    .filter({ hasText: "Long conversation start" })
+    .click();
+  await expect(page.getByText("Showing 200 of 250 messages")).toBeVisible();
+  await expect(page.locator("article.message")).toHaveCount(200);
+  await page.getByRole("button", { name: "Show more" }).click();
+  await expect(page.locator("article.message")).toHaveCount(250);
+  await expect(page.getByRole("button", { name: "Show more" })).toHaveCount(0);
+  const full = page.getByRole("button", { name: /Show full message/ });
+  await expect(full).toContainText("30,000 characters");
+  await full.click();
+  await expect(full).toHaveCount(0);
+  await page.getByLabel("Find in conversation").fill("Reply number 123");
+  await expect(
+    page.getByText("Showing 1 of 1 matching messages"),
+  ).toBeVisible();
 });
 test("invalid configuration and stale revisions cannot overwrite files", async ({
   page,

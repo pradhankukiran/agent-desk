@@ -1,6 +1,8 @@
 package desk
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,5 +144,45 @@ func TestSessionListStopsEarly(t *testing.T) {
 	info, _ = os.Stat(path)
 	if sf = readSessionFile("claude", path, info); sf.item.Project != "/w/moved" {
 		t.Fatalf("claude folder: %+v", sf.item)
+	}
+}
+
+func TestTranscriptPaging(t *testing.T) {
+	s := fixture(t)
+	path := filepath.Join(s.Home, ".claude/projects/p/long.jsonl")
+	content := ""
+	for i := 0; i < 450; i++ {
+		word := "plain"
+		if i%100 == 0 {
+			word = "needle"
+		}
+		content += claudeLine(fmt.Sprintf("message %d %s", i, word))
+	}
+	put(t, path, content)
+	id := fileID(path)
+	get := func(params string) Transcript {
+		r := callAPI(t, s, "GET", "session?agent=claude&id="+id+params, "")
+		if r.code != 200 {
+			t.Fatalf("%s: %d %v", params, r.code, r.body)
+		}
+		b, _ := json.Marshal(r.body)
+		var tr Transcript
+		json.Unmarshal(b, &tr)
+		return tr
+	}
+	first := get("")
+	if first.Total != 450 || first.Offset != 0 || len(first.Messages) != 200 || first.Messages[0].Text != "message 0 needle" {
+		t.Fatalf("first page: total %d offset %d len %d", first.Total, first.Offset, len(first.Messages))
+	}
+	last := get("&offset=400")
+	if len(last.Messages) != 50 || last.Messages[49].Text != "message 449 plain" {
+		t.Fatalf("last page: %d messages", len(last.Messages))
+	}
+	if past := get("&offset=9999&limit=-3"); len(past.Messages) != 0 || past.Offset != 450 {
+		t.Fatalf("past the end: %+v", past)
+	}
+	found := get("&q=NEEDLE&limit=2")
+	if found.Total != 5 || len(found.Messages) != 2 || found.Messages[1].Text != "message 100 needle" {
+		t.Fatalf("filtered: total %d %+v", found.Total, found.Messages)
 	}
 }
