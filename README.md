@@ -235,3 +235,13 @@ For compatibility reports, include the agent version, operating system, file for
 - Session-list search covers titles, project paths, and session IDs. Message filtering applies to the selected conversation; there is no global full-text conversation search.
 - Agent formats can change between releases. Support reflects the formats inspected during initial development, not a guarantee across every version.
 
+## Adapter references
+
+The initial adapters were developed against local configuration files and storage schemas, with these supporting references:
+
+- [OpenAI MCP configuration](https://developers.openai.com/learn/docs-mcp).
+- [OpenAI plugin structure](https://developers.openai.com/plugins/build/plugins).
+- Grok's installed user guide: `~/.grok/docs/user-guide/`.
+- Agy's installed customization guide: `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/`.
+
+Report bugs and compatibility gaps through [GitHub Issues](https://github.com/pradhankukiran/agent-desk/issues).
