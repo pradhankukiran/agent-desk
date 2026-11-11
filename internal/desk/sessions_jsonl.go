@@ -11,21 +11,50 @@ import (
 	"time"
 )
 
-func scanLines(path string, limit int64, fn func(map[string]any) bool) error {
+// maxLine caps a single JSONL entry. Longer entries are skipped, not fatal.
+var maxLine = 64 << 20
+
+// scanLines calls fn for each JSON object line in the first limit bytes of
+// path until fn returns false. Malformed lines are ignored. It returns the
+// number of lines skipped for exceeding maxLine.
+func scanLines(path string, limit int64, fn func(map[string]any) bool) (int, error) {
 	f, e := os.Open(path)
 	if e != nil {
-		return e
+		return 0, e
 	}
 	defer f.Close()
-	scanner := bufio.NewScanner(io.LimitReader(f, limit))
-	scanner.Buffer(make([]byte, 64*1024), 8<<20)
-	for scanner.Scan() {
-		var d map[string]any
-		if json.Unmarshal(scanner.Bytes(), &d) == nil && !fn(d) {
-			break
+	r := bufio.NewReaderSize(io.LimitReader(f, limit), 64*1024)
+	skipped := 0
+	var line []byte
+	tooLong := false
+	for {
+		chunk, e := r.ReadSlice('\n')
+		if !tooLong {
+			if len(line)+len(chunk) > maxLine {
+				tooLong, line = true, nil
+			} else {
+				line = append(line, chunk...)
+			}
+		}
+		if e == bufio.ErrBufferFull {
+			continue
+		}
+		if tooLong {
+			skipped++
+		} else if len(line) > 0 {
+			var d map[string]any
+			if json.Unmarshal(line, &d) == nil && !fn(d) {
+				return skipped, nil
+			}
+		}
+		line, tooLong = line[:0], false
+		if e == io.EOF {
+			return skipped, nil
+		}
+		if e != nil {
+			return skipped, e
 		}
 	}
-	return scanner.Err()
 }
 
 func (s *Server) fileSessions(agent string) ([]Session, []string) {
@@ -39,7 +68,7 @@ func (s *Server) fileSessions(agent string) ([]Session, []string) {
 	warnings := []string{}
 	titles := map[string]string{}
 	if agent == "codex" {
-		_ = scanLines(filepath.Join(s.Home, ".codex/session_index.jsonl"), 16<<20, func(d map[string]any) bool {
+		_, _ = scanLines(filepath.Join(s.Home, ".codex/session_index.jsonl"), 16<<20, func(d map[string]any) bool {
 			id := str(d["id"])
 			name := str(d["thread_name"])
 			if name == "" {
@@ -65,7 +94,7 @@ func (s *Server) fileSessions(agent string) ([]Session, []string) {
 			item.Project, _ = url.PathUnescape(filepath.Base(filepath.Dir(filepath.Dir(p))))
 		}
 		count := 0
-		e = scanLines(p, 512<<10, func(d map[string]any) bool {
+		_, e = scanLines(p, 512<<10, func(d map[string]any) bool {
 			count++
 			if agent == "codex" && str(d["type"]) == "session_meta" {
 				meta := obj(d["payload"])

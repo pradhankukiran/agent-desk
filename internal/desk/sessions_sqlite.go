@@ -105,7 +105,7 @@ func (s *Server) transcript(item Session) (Transcript, error) {
 		if info, e := os.Stat(item.Path); e == nil {
 			t.Truncated = info.Size() > 64<<20
 		}
-		e := scanLines(item.Path, 64<<20, func(d map[string]any) bool {
+		skipped, e := scanLines(item.Path, 64<<20, func(d map[string]any) bool {
 			if m, ok := normalize(item.Agent, d); ok {
 				t.Messages = append(t.Messages, m)
 			}
@@ -115,7 +115,18 @@ func (s *Server) transcript(item Session) (Transcript, error) {
 		if t.Truncated {
 			t.Note += " Showing the first 64 MB."
 		}
-		return t, e
+		if skipped == 1 {
+			t.Note += " 1 very large entry was skipped."
+		} else if skipped > 1 {
+			t.Note += fmt.Sprintf(" %d very large entries were skipped.", skipped)
+		}
+		if e != nil {
+			if len(t.Messages) == 0 {
+				return t, e
+			}
+			t.Note += " Reading stopped early: " + e.Error() + "."
+		}
+		return t, nil
 	}
 	db, e := openDB(item.Path)
 	if e != nil {
