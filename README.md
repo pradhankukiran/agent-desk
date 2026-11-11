@@ -62,3 +62,28 @@ The final command assumes `~/.local/bin` is already on your `PATH`.
 
 MCP servers, plugins, and hooks can be configured by editing their source files. Agent Desk does not connect to MCP servers, run conversations, or install plugins.
 
+## Agent support
+
+The adapters inspect known local paths and storage formats. The paths below are the primary locations; project and shared-skill discovery add further sources where supported.
+
+| Agent | Primary configuration | Session reader |
+| --- | --- | --- |
+| Codex | `~/.codex/config.toml` | JSONL sessions and archived sessions. |
+| Claude Code | `~/.claude/settings.json`, `~/.claude.json` | Project JSONL conversations. |
+| OpenCode | `~/.config/opencode/opencode.json` and `.jsonc` | SQLite history using both supported session schemas. |
+| Grok | `~/.grok/config.toml` | JSONL chat history. |
+| Agy | `~/.gemini/antigravity-cli/settings.json`, `~/.gemini/config/` | Conversation metadata and indexed text excerpts. |
+
+### Understanding the inventory
+
+- **Present** means a definition was found on disk. It does not prove the agent has loaded it.
+- **Configured** means an entry exists in a recognized configuration map. It does not indicate connection health.
+- **Disabled** reflects an explicit disable value recognized by the adapter.
+- **Not created** identifies a known configuration or instruction file that can be created through the editor.
+
+Shared skills may appear under multiple agents. Bundled, installed-plugin, managed, and linked files are generally view-only. Supported user and project files can be edited.
+
+### Agy conversation history
+
+Agy stores full conversation steps as binary payloads. Agent Desk reads the local search index instead. These excerpts may omit content and group user and assistant text by index chunk. The interface labels them as excerpts rather than a complete, ordered transcript.
+
