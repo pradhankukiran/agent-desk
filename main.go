@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -58,7 +59,7 @@ func main() {
 		}()
 	}
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-stop
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
