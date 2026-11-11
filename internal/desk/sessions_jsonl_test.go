@@ -191,6 +191,7 @@ func TestTitleText(t *testing.T) {
 	cases := map[string]string{
 		"plain question": "plain question",
 		"\n\n<pasted_content id=\"1\">\nJob post\n</pasted_content>\n\nthis is a job, tell me": "this is a job, tell me",
+		"look at this: <pasted_content id=\"2\">post</pasted_content id=\"2\"> thanks":         "look at this:   thanks",
 		"<system-reminder>rules</system-reminder>":                                             "",
 		"  <command-name>/init</command-name>":                                                 "",
 		"# AGENTS.md instructions for /x":                                                      "",

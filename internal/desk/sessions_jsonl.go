@@ -62,7 +62,7 @@ func scanLines(path string, limit int64, fn func(map[string]any) bool) (int, err
 
 // taggedBlock matches blocks such as <pasted_content ...>...</pasted_content>
 // or <system-reminder>...</system-reminder> that agents add around prompts.
-var taggedBlock = regexp.MustCompile(`(?s)<([A-Za-z][\w-]*)[^<>]*>.*?</[A-Za-z][\w-]*>`)
+var taggedBlock = regexp.MustCompile(`(?s)<([A-Za-z][\w-]*)[^<>]*>.*?</[A-Za-z][\w-]*[^<>]*>`)
 
 // titleText returns the words a person typed in a prompt, without pasted or
 // injected blocks, or "" if the prompt is only such content.
