@@ -47,3 +47,18 @@ agent-desk
 
 The final command assumes `~/.local/bin` is already on your `PATH`.
 
+## Features
+
+| Area | Available now |
+| --- | --- |
+| Agent overview | Installation detection through `PATH`, configuration inventory, and extension counts. |
+| Project scope | User configuration alongside known project configuration and instruction files. |
+| Extensions | MCP server declarations, skills, plugins, hooks, agent definitions, commands, and rules in supported locations. |
+| Instructions | View, create, edit, and remove supported instruction files, including `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`. |
+| Configuration | Edit original JSON, JSONC, and TOML files with syntax validation and review before saving. |
+| Skills | Create a skill, edit its `SKILL.md`, or remove an editable skill definition. |
+| Sessions | Browse conversations, search titles and project paths, filter messages, and copy message text. |
+| Change protection | Revision checks, automatic backups, permission preservation, and reviewable undo of the last save. |
+
+MCP servers, plugins, and hooks can be configured by editing their source files. Agent Desk does not connect to MCP servers, run conversations, or install plugins.
+
