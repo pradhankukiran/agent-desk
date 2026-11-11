@@ -97,3 +97,25 @@ func TestOpenCodeThinkingIsSeparate(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenCodeSingleSchemaHasNoWarning(t *testing.T) {
+	for _, table := range []string{"session", "session_v2"} {
+		t.Run(table, func(t *testing.T) {
+			s := fixture(t)
+			path := filepath.Join(s.Home, ".local/share/opencode/opencode.db")
+			dbFixture(t, path,
+				`CREATE TABLE `+table+` (id TEXT,title TEXT,directory TEXT,time_updated INTEGER)`,
+				`INSERT INTO `+table+` VALUES ('a','A session','/project',1000)`)
+			items, warnings := s.dbSessions("opencode")
+			if len(items) != 1 || len(warnings) != 0 {
+				t.Fatalf("sessions %v warnings %v", items, warnings)
+			}
+		})
+	}
+	s := fixture(t)
+	path := filepath.Join(s.Home, ".local/share/opencode/opencode.db")
+	dbFixture(t, path, `CREATE TABLE other (x TEXT)`)
+	if _, warnings := s.dbSessions("opencode"); len(warnings) != 1 {
+		t.Fatalf("unsupported database should warn once: %v", warnings)
+	}
+}

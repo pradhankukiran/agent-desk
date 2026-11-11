@@ -49,7 +49,21 @@ func (s *Server) dbSessions(agent string) ([]Session, []string) {
 	}
 	defer db.Close()
 	if agent == "opencode" {
+		// OpenCode has used two schemas; a database may hold either or both.
+		tables := []string{}
 		for _, table := range []string{"session", "session_v2"} {
+			var n int
+			if e := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&n); e != nil {
+				return out, append(warnings, e.Error())
+			}
+			if n > 0 {
+				tables = append(tables, table)
+			}
+		}
+		if len(tables) == 0 {
+			warnings = append(warnings, "OpenCode database has no session tables in a supported format")
+		}
+		for _, table := range tables {
 			rows, e := db.Query("SELECT id, COALESCE(title,''), directory, time_updated FROM " + table + " ORDER BY time_updated DESC")
 			if e != nil {
 				warnings = append(warnings, table+": "+e.Error())
