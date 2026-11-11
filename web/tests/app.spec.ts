@@ -249,6 +249,8 @@ test("invalid configuration and stale revisions cannot overwrite files", async (
   await page.goto(link);
   await page.getByRole("tab", { name: "Settings" }).click();
   await page.locator(".file-row").filter({ hasText: "config.toml" }).click();
+  // TOML gets syntax colouring.
+  await expect(page.locator(".cm-content span").first()).toBeVisible();
   await page.locator(".cm-content").fill("model = [");
   await page.getByRole("button", { name: "Review changes" }).click();
   await page.getByRole("button", { name: "Confirm save" }).click();

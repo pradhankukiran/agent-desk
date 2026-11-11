@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { javascript } from "@codemirror/lang-javascript";
+import { StreamLanguage } from "@codemirror/language";
+import { toml } from "@codemirror/legacy-modes/mode/toml";
 import type { Catalog, OpenFile, Session, Transcript } from "./types";
 import { api, query } from "./api";
 import { FileRow, Empty } from "./components";
@@ -20,6 +23,16 @@ const accents: Record<string, string> = {
   grok: "#787087",
   agy: "#558769",
 };
+// languageFor picks syntax colouring from a file name.
+function languageFor(name: string) {
+  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+  if (ext === "md") return [markdown()];
+  if (ext === "toml") return [StreamLanguage.define(toml)];
+  if (ext === "json" || ext === "jsonc") return [json()];
+  if (["js", "mjs", "cjs", "ts", "mts", "cts"].includes(ext))
+    return [javascript({ typescript: ext.endsWith("ts") })];
+  return [];
+}
 // Shown in the sidebar until the catalog loads.
 const defaultAgents = [
   { id: "codex", name: "Codex" },
@@ -896,13 +909,7 @@ export default function App() {
                     <CodeMirror
                       value={draft}
                       height="100%"
-                      extensions={
-                        opened.file.name.endsWith(".md")
-                          ? [markdown()]
-                          : opened.file.name.endsWith(".toml")
-                            ? []
-                            : [json()]
-                      }
+                      extensions={languageFor(opened.file.name)}
                       editable={opened.file.editable && !busy}
                       onChange={setDraft}
                       basicSetup={{ lineNumbers: true, foldGutter: true }}
