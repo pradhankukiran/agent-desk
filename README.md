@@ -224,3 +224,14 @@ Keep agent-specific path and storage assumptions explicit. Add fixture-based cov
 
 For compatibility reports, include the agent version, operating system, file format, and a minimal sanitized example. Remove tokens, private conversation text, and account metadata before sharing logs or configuration.
 
+## Limitations
+
+- Inventory is based on known paths. It does not fully resolve runtime flags, environment overrides, managed remote settings, compatibility imports, custom skill directories, or plugin activation.
+- Project discovery covers known files at the selected root. It does not recursively discover every nested instruction file or calculate inherited instruction precedence.
+- Plugin installation, marketplace browsing, one-click extension toggles, and in-app agent execution are not implemented.
+- Most transcript views show conversation text and omit tool events, system messages, and attachments. Agy uses the excerpt format described above.
+- JSONL transcript reads stop after **64 MB** and display a truncation notice. Individual JSONL records must fit the reader's **8 MB** scanner limit.
+- File editing is limited to **4 MB** per file.
+- Session-list search covers titles, project paths, and session IDs. Message filtering applies to the selected conversation; there is no global full-text conversation search.
+- Agent formats can change between releases. Support reflects the formats inspected during initial development, not a guarantee across every version.
+
