@@ -164,18 +164,25 @@ export default function App() {
     setBusy(true);
     setError("");
     try {
-      const d = await api<{ revision: string; backup: string }>(
-        "file?" + query({ id: opened.file.id, project }),
-        {
-          method: "PUT",
-          body: JSON.stringify({ content, revision: opened.revision }),
-        },
-      );
+      const d = await api<{
+        revision: string;
+        backup: string;
+        merged: boolean;
+      }>("file?" + query({ id: opened.file.id, project }), {
+        method: "PUT",
+        body: JSON.stringify({
+          content,
+          revision: opened.revision,
+          base: opened.content,
+        }),
+      });
       await loadFile(opened.file.id);
       setNotice(
-        d.backup
-          ? "Saved. A backup of the previous file is available in ~/.local/state/agent-desk/backups."
-          : "File created.",
+        d.merged
+          ? "Saved. Another program changed this file while you were editing, so your changes were combined with its changes. A backup is in ~/.local/state/agent-desk/backups."
+          : d.backup
+            ? "Saved. A backup of the previous file is available in ~/.local/state/agent-desk/backups."
+            : "File created.",
       );
       setReload((v) => v + 1);
     } catch (e) {

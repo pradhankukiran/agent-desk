@@ -218,6 +218,30 @@ test("undo removes a file created by the last save, even after a reload", async 
   await expect(page.getByRole("status")).toContainText("was removed");
   expect(existsSync(join(home, ".grok/AGENTS.md"))).toBe(false);
 });
+test("JSON settings changed by another program are merged on save", async ({
+  page,
+}) => {
+  await page.goto(link);
+  await page.locator(".agent-nav").filter({ hasText: "Claude Code" }).click();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page
+    .locator(".file-row")
+    .filter({ hasText: ".claude/settings.json" })
+    .click();
+  await expect(page.locator(".cm-content")).toBeVisible();
+  writeFileSync(
+    join(home, ".claude/settings.json"),
+    '{\n  "cleanupPeriodDays": 30\n}\n',
+  );
+  await page.locator(".cm-content").fill('{"theme": "light"}');
+  await page.getByRole("button", { name: "Review changes" }).click();
+  await page.getByRole("button", { name: "Confirm save" }).click();
+  await expect(page.getByRole("status")).toContainText("combined");
+  const saved = JSON.parse(
+    readFileSync(join(home, ".claude/settings.json"), "utf8"),
+  );
+  expect(saved).toEqual({ cleanupPeriodDays: 30, theme: "light" });
+});
 test("invalid configuration and stale revisions cannot overwrite files", async ({
   page,
 }) => {

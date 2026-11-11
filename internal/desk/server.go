@@ -87,22 +87,36 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
-		var body struct{ Content, Revision string }
+		// Base is the content the editor opened; it lets JSON edits merge with
+		// changes another program made in the meantime.
+		var body struct{ Content, Revision, Base string }
 		if e = decode(w, r, &body); e != nil {
 			failure(w, e)
 			return
 		}
+		content := []byte(body.Content)
 		rec, remembered := s.remember(f.Path, body.Revision)
-		backup, e := s.save(f, []byte(body.Content), body.Revision, false)
+		backup, e := s.save(f, content, body.Revision, false)
+		merged := false
+		if errors.Is(e, errConflict) && f.Kind == "config" && strings.HasSuffix(f.Path, ".json") && body.Revision != "missing" && digest([]byte(body.Base)) == body.Revision {
+			disk, rev, err := current(f.Path)
+			if err == nil && rev != "missing" {
+				if content, e = mergeJSON([]byte(body.Base), []byte(body.Content), disk); e == nil {
+					rec, remembered = s.remember(f.Path, rev)
+					backup, e = s.save(f, content, rev, false)
+					merged = true
+				}
+			}
+		}
 		if e != nil {
 			failure(w, e)
 			return
 		}
 		if remembered {
-			rec.after = digest([]byte(body.Content))
+			rec.after = digest(content)
 			s.undo[f.Path] = rec
 		}
-		reply(w, 200, map[string]string{"revision": digest([]byte(body.Content)), "backup": backup})
+		reply(w, 200, map[string]any{"revision": digest(content), "backup": backup, "merged": merged})
 	})
 	mux.HandleFunc("DELETE /api/file", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -235,7 +249,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxFile+4096)
+	r.Body = http.MaxBytesReader(w, r.Body, 2*maxFile+4096)
 	dec := json.NewDecoder(r.Body)
 	if e := dec.Decode(v); e != nil {
 		return e

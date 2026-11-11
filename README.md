@@ -130,7 +130,7 @@ Do not expose the server through a public proxy or share its access URL. This is
 
 ### Saves and backups
 
-Saving validates configuration syntax, checks the opened revision, preserves existing file permissions, and replaces the target through a temporary file and rename. Removing an editable skill or instruction file also creates a backup.
+Saving validates configuration syntax, checks the opened revision, preserves existing file permissions, and replaces the target through a temporary file and rename. If another program changed a plain JSON configuration file after you opened it, Agent Desk merges your edits with those changes when they touch different settings, keeping the file's key order. If both changed the same setting, the save is refused and names the setting. Removing an editable skill or instruction file also creates a backup.
 
 Backups are private JSON files stored under:
 
