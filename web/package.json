@@ -15,6 +15,9 @@
     "@codemirror/language": "^6.13.1",
     "@codemirror/legacy-modes": "^6.5.5",
     "@codemirror/merge": "^6.12.3",
+    "@primer/octicons-react": "^19.42.0",
+    "@primer/primitives": "^11.10.0",
+    "@primer/react": "^38.45.0",
     "@uiw/react-codemirror": "^4.25.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
