@@ -142,3 +142,41 @@ Each backup records the original `path`, `content`, and save time. **Undo last s
 
 Backups may contain sensitive values. Revision checks reduce accidental overwrites, but they are not a locking protocol shared with running agent processes. Validation checks syntax, not every agent-specific setting or its operational effect.
 
+## Architecture
+
+```text
+Browser: React + TypeScript + CodeMirror
+                   │
+              Local HTTP API
+                   │
+             Go application
+                   │
+    Agent configuration and session readers
+                   │
+      Native files / read-only SQLite
+```
+
+The app does not create a separate configuration database. Existing agent files remain authoritative; application-owned state consists of backups.
+
+```text
+main.go                        CLI, embedded assets, browser launch
+internal/desk/
+  agents.go                    Agent-specific discovery locations
+  catalog.go                   File and extension inventory
+  config.go                    JSON / JSONC / TOML parsing
+  files.go                     Validation, revisions, backups, writes
+  paths.go                     File identifiers and project boundaries
+  server.go                    HTTP routes and access controls
+  messages.go                  Conversation text normalization
+  sessions_jsonl.go            Codex, Claude, and Grok history
+  sessions_sqlite.go           OpenCode history and Agy excerpts
+web/
+  src/App.tsx                  Agent workspace and editor flows
+  src/api.ts                   Authenticated API client
+  src/types.ts                 Interface data types
+  src/components.tsx           Shared file and empty-state views
+  tests/app.spec.ts            Browser integration tests
+```
+
+Go's standard HTTP library serves the API and compiled interface. CodeMirror supplies the browser editor. TOML, JSONC, and SQLite libraries handle the agents' storage formats.
+
