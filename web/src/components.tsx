@@ -14,7 +14,6 @@ export function FileRow({
 }) {
   return (
     <button className="file-row" onClick={onOpen}>
-      <span className="file-icon">{f.kind === "instruction" ? "≡" : "⌘"}</span>
       <span className="file-info">
         <strong>{f.name}</strong>
         <small title={f.path}>{f.path}</small>
@@ -23,16 +22,14 @@ export function FileRow({
       <span className={"badge " + (f.exists ? "present" : "missing")}>
         {f.exists ? "Present" : "Not created"}
       </span>
-      <span className="row-arrow">↗</span>
     </button>
   );
 }
 export function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="empty">
-      <span>◇</span>
       <h3>{title}</h3>
-      <p>{text}</p>
+      {text && <p>{text}</p>}
     </div>
   );
 }

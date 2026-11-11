@@ -354,14 +354,9 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">▦</span>
-          <div>
-            agent desk<small>YOUR LOCAL WORKSPACE</small>
-          </div>
-        </div>
+        <div className="brand">agent desk</div>
         <div className="nav-caption">
-          AGENTS <span>{String(navAgents.length).padStart(2, "0")}</span>
+          Agents <span>{navAgents.length}</span>
         </div>
         <nav>
           {navAgents.map((a) => (
@@ -378,55 +373,34 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-note">
-          <span className="live-dot" /> Running locally
-          <p>
-            Your agents. Your files.
-            <br />
-            One place to see it all.
-          </p>
-        </div>
-        <div className="sidebar-footer">
-          LOCAL WORKSPACE <span>↗</span>
-        </div>
       </aside>
       <main>
-        <header className="topbar">
-          <span>
-            Workspace <span className="slash">/</span>{" "}
-            <strong>{agent?.name || "Loading"}</strong>
-          </span>
-          <span className="local-pill">
-            <span className="live-dot" /> Local connection
-          </span>
-        </header>
         <div className="workspace">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">AGENT WORKSPACE</div>
               <h1>
                 {agent?.name || "Agent Desk"}
                 <span className="status-tag">
                   {agent?.installed ? "Installed" : "Not found"}
                 </span>
               </h1>
-              <p>
-                Configuration, extensions, and conversations. All in one place.
-              </p>
             </div>
             <button
               className="button secondary"
               onClick={() => {
                 setReload((v) => v + 1);
-                setNotice("Workspace refreshed.");
+                setNotice("Reloaded from disk.");
               }}
             >
-              ↻ Refresh
+              Reload
             </button>
           </div>
           <div className="scopebar">
-            <span className="scope-label">◎ SCOPE</span>
+            <label className="scope-label" htmlFor="project-scope">
+              Project
+            </label>
             <select
+              id="project-scope"
               aria-label="Project scope"
               value={project}
               onChange={(e) =>
@@ -435,7 +409,7 @@ export default function App() {
                   : chooseProject(e.target.value)
               }
             >
-              <option value="">User configuration · all projects</option>
+              <option value="">None (user settings only)</option>
               {Array.from(
                 new Set([
                   ...(catalog?.projects || []),
@@ -446,13 +420,8 @@ export default function App() {
                   {p}
                 </option>
               ))}
-              <option value="__custom">Choose another directory…</option>
+              <option value="__custom">Other folder…</option>
             </select>
-            <span className="scope-hint">
-              {project
-                ? "User + project files"
-                : "Select a project to include its settings"}
-            </span>
           </div>
           <div className="tabs" role="tablist">
             {tabs.map((t) => (
@@ -492,10 +461,10 @@ export default function App() {
             <>
               <div className="stats">
                 {[
-                  ["mcp", "MCP servers", "Connected tool configuration"],
-                  ["skill", "Skills", "Instructions available on disk"],
-                  ["plugin", "Plugins", "Configured or installed packages"],
-                ].map(([k, label, hint]) => (
+                  ["mcp", "MCP servers"],
+                  ["skill", "Skills"],
+                  ["plugin", "Plugins"],
+                ].map(([k, label]) => (
                   <button
                     className="stat"
                     key={k}
@@ -504,12 +473,8 @@ export default function App() {
                       setKind(k);
                     }}
                   >
-                    <div>
-                      {label}
-                      <span>↗</span>
-                    </div>
-                    <strong>{count(k).toString().padStart(2, "0")}</strong>
-                    <small>{hint}</small>
+                    <div>{label}</div>
+                    <strong>{count(k)}</strong>
                   </button>
                 ))}
               </div>
@@ -517,12 +482,6 @@ export default function App() {
                 <section className="panel">
                   <div className="panel-heading">
                     <h2>Configuration files</h2>
-                    <button
-                      className="text-button"
-                      onClick={() => setTab("Settings")}
-                    >
-                      View all →
-                    </button>
                   </div>
                   {agent.files
                     .filter((f) => f.kind === "config")
@@ -536,45 +495,20 @@ export default function App() {
                 </section>
                 <section className="panel">
                   <div className="panel-heading">
-                    <h2>Workspace details</h2>
-                    <span className="subtle">ON THIS MACHINE</span>
+                    <h2>Details</h2>
                   </div>
                   <dl>
                     <dt>Executable</dt>
                     <dd>{agent.executable || "Not found on PATH"}</dd>
-                    <dt>Configuration source</dt>
-                    <dd>Native agent files</dd>
-                    <dt>Editing</dt>
-                    <dd>Validated saves with automatic backups</dd>
-                    <dt>Session access</dt>
+                    <dt>Conversation history</dt>
                     <dd>
                       {agent.id === "agy"
                         ? "Local search index excerpts"
                         : "Local conversation history"}
                     </dd>
                   </dl>
-                  <div className="info-box">
-                    “Present” means found on disk. It does not confirm that an
-                    agent has loaded or enabled an extension.
-                  </div>
                 </section>
               </div>
-              <section className="panel instructions-preview">
-                <div>
-                  <div className="eyebrow">MAKE IT YOURS</div>
-                  <h2>Instructions that shape your agent</h2>
-                  <p>
-                    Read and edit your agent’s instruction files, with their
-                    original location always visible.
-                  </p>
-                </div>
-                <button
-                  className="button secondary"
-                  onClick={() => setTab("Instructions")}
-                >
-                  Open instructions →
-                </button>
-              </section>
             </>
           )}
           {tab !== "Overview" && (
@@ -635,8 +569,7 @@ export default function App() {
           {tab === "Extensions" && (
             <>
               <div className="section-caption">
-                <span>{ext.length} ITEMS</span>
-                <span>Open a source file to edit configuration</span>
+                {ext.length} {ext.length === 1 ? "item" : "items"}
               </div>
               <div className="extension-grid">
                 {ext.map((x, i) => (
@@ -664,9 +597,6 @@ export default function App() {
                     <p title={x.source}>
                       {x.source.replace(catalog?.home || "", "~")}
                     </p>
-                    <div className="card-footer">
-                      View source <span>↗</span>
-                    </div>
                   </button>
                 ))}
               </div>
@@ -691,7 +621,7 @@ export default function App() {
                     ? "Instruction files"
                     : "Configuration files"}
                 </h2>
-                <span className="subtle">{files.length} FILES</span>
+                <span className="subtle">{files.length}</span>
               </div>
               {files.map((f) => (
                 <FileRow key={f.id} file={f} onOpen={() => openFile(f.id)} />
@@ -723,10 +653,7 @@ export default function App() {
                     <span className="subtle">{visibleSessions.length}</span>
                   </div>
                   {sessionBusy ? (
-                    <Empty
-                      title="Reading local history…"
-                      text="Loading session metadata."
-                    />
+                    <Empty title="Loading…" text="" />
                   ) : visibleSessions.length === 0 ? (
                     <Empty
                       title="No matching sessions"
@@ -762,7 +689,7 @@ export default function App() {
                   {!session ? (
                     <Empty
                       title="Pick a conversation"
-                      text="Read the history without changing the agent’s session files."
+                      text="Conversations are read-only."
                     />
                   ) : (
                     <>
@@ -864,9 +791,6 @@ export default function App() {
               </div>
             </>
           )}
-          <footer className="page-footer">
-            AGENT DESK <span>Stored locally. Connected to your workspace.</span>
-          </footer>
         </div>
       </main>
       {(opened || fileLoading) && (

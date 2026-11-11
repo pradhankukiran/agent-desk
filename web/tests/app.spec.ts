@@ -105,7 +105,7 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
   await page.screenshot({ path: "test-results/overview.png", fullPage: true });
-  await expect(page.locator(".nav-caption")).toHaveText("AGENTS 05");
+  await expect(page.locator(".nav-caption")).toHaveText("Agents 5");
   for (const name of ["Claude Code", "OpenCode", "Grok", "Agy", "Codex"]) {
     await page.locator(".agent-nav").filter({ hasText: name }).click();
     await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
