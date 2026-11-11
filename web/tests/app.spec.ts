@@ -319,6 +319,22 @@ test("long conversations load in pages and huge messages are shortened", async (
     page.getByText("Showing 1 of 1 matching messages"),
   ).toBeVisible();
 });
+test("keyboard: slash focuses search and Escape closes the editor", async ({
+  page,
+}) => {
+  await page.goto(link);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.keyboard.press("/");
+  await expect(page.getByLabel("Search")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Search")).not.toBeFocused();
+  await page.locator(".file-row").first().click();
+  await expect(page.getByRole("dialog", { name: "File editor" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "File editor" })).toHaveCount(
+    0,
+  );
+});
 test("invalid configuration and stale revisions cannot overwrite files", async ({
   page,
 }) => {

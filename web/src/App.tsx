@@ -54,6 +54,7 @@ export default function App() {
   const [review, setReview] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const fileRequest = useRef(0);
+  const searchBox = useRef<HTMLInputElement>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [session, setSession] = useState<Session>();
   const [transcript, setTranscript] = useState<Transcript>();
@@ -162,6 +163,25 @@ export default function App() {
       setMoreBusy(false);
     }
   }
+  // Keyboard: "/" jumps to search; Escape closes the open dialog or editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const typing =
+        target.closest("input, textarea, select, .cm-editor") !== null;
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        searchBox.current?.focus();
+      } else if (e.key === "Escape") {
+        if (newSkill) setNewSkill(false);
+        else if (customProject) setCustomProject(false);
+        else if ((opened || fileLoading) && !busy) closeEditor();
+        else if (target === searchBox.current) searchBox.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   function mayLeave() {
     return !dirty || window.confirm("Discard your unsaved changes?");
   }
@@ -480,15 +500,16 @@ export default function App() {
           ))}
           <div className="toolbar">
             <input
+              ref={searchBox}
               className="search"
               type="search"
               aria-label="Search"
               placeholder={
                 tab === "Sessions"
-                  ? "Search titles and folders"
+                  ? "Search titles and folders  ( / )"
                   : tab === "Files"
-                    ? "Search file paths"
-                    : "Search names and paths"
+                    ? "Search file paths  ( / )"
+                    : "Search names and paths  ( / )"
               }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
