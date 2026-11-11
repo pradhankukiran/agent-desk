@@ -10,6 +10,9 @@ type Server struct {
 	Home, Token string
 	mu          sync.Mutex
 	undo        map[string]undoRecord // last save per file path, guarded by mu
+
+	cacheMu      sync.Mutex
+	sessionCache map[string]sessionFile // session list details per history file
 }
 
 func New(home string) *Server {

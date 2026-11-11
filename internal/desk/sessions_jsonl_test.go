@@ -83,3 +83,64 @@ func TestSessionProjectFilter(t *testing.T) {
 		t.Fatalf("agy folders: %v", got)
 	}
 }
+
+func codexSession(id, cwd, prompt string) string {
+	return `{"type":"session_meta","payload":{"id":"` + id + `","cwd":"` + cwd + `"}}` + "\n" +
+		`{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + prompt + `"}]}}` + "\n"
+}
+
+func titlesByPath(items []Session) map[string]string {
+	out := map[string]string{}
+	for _, it := range items {
+		out[filepath.Base(it.Path)] = it.Title + " @ " + it.Project
+	}
+	return out
+}
+
+func TestSessionListCacheTracksChanges(t *testing.T) {
+	s := fixture(t)
+	dir := filepath.Join(s.Home, ".codex/sessions/2026/01/01")
+	put(t, filepath.Join(dir, "a.jsonl"), codexSession("a", "/w/a", "first prompt"))
+	put(t, filepath.Join(dir, "b.jsonl"), codexSession("b", "/w/b", "second prompt"))
+	items, _ := s.fileSessions("codex")
+	if got := titlesByPath(items); got["a.jsonl"] != "first prompt @ /w/a" || got["b.jsonl"] != "second prompt @ /w/b" {
+		t.Fatalf("first list: %v", got)
+	}
+
+	// A changed file is re-read, a new file appears, a removed file disappears.
+	put(t, filepath.Join(dir, "a.jsonl"), codexSession("a", "/w/a2", "edited prompt that is longer"))
+	put(t, filepath.Join(dir, "c.jsonl"), codexSession("c", "/w/c", "third prompt"))
+	os.Remove(filepath.Join(dir, "b.jsonl"))
+	// Index titles apply even to cached files.
+	put(t, filepath.Join(s.Home, ".codex/session_index.jsonl"), `{"id":"c","thread_name":"Named thread"}`+"\n")
+	items, _ = s.fileSessions("codex")
+	got := titlesByPath(items)
+	if len(got) != 2 || got["a.jsonl"] != "edited prompt that is longer @ /w/a2" || got["c.jsonl"] != "Named thread @ /w/c" {
+		t.Fatalf("second list: %v", got)
+	}
+	s.cacheMu.Lock()
+	n := len(s.sessionCache)
+	s.cacheMu.Unlock()
+	if n != 2 {
+		t.Fatalf("cache holds %d entries, want 2", n)
+	}
+}
+
+func TestSessionListStopsEarly(t *testing.T) {
+	s := fixture(t)
+	path := filepath.Join(s.Home, ".codex/sessions/2026/01/01/long.jsonl")
+	// The later line would change the folder if it were read.
+	put(t, path, codexSession("x", "/w/x", "hello")+`{"cwd":"/late"}`+"\n")
+	info, _ := os.Stat(path)
+	sf := readSessionFile("codex", path, info)
+	if sf.item.Title != "hello" || sf.item.Project != "/w/x" || sf.metaID != "x" {
+		t.Fatalf("codex did not stop after finding its details: %+v", sf.item)
+	}
+	// Claude keeps reading, so a later folder change is still picked up.
+	path = filepath.Join(s.Home, ".claude/projects/p/s.jsonl")
+	put(t, path, `{"cwd":"/w/start"}`+"\n"+claudeLine("hello")+`{"cwd":"/w/moved"}`+"\n")
+	info, _ = os.Stat(path)
+	if sf = readSessionFile("claude", path, info); sf.item.Project != "/w/moved" {
+		t.Fatalf("claude folder: %+v", sf.item)
+	}
+}
