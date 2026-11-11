@@ -9,6 +9,7 @@ import (
 type Server struct {
 	Home, Token string
 	mu          sync.Mutex
+	undo        map[string]undoRecord // last save per file path, guarded by mu
 }
 
 func New(home string) *Server {
@@ -16,5 +17,5 @@ func New(home string) *Server {
 	if _, e := rand.Read(b); e != nil {
 		panic(e)
 	}
-	return &Server{Home: home, Token: hex.EncodeToString(b)}
+	return &Server{Home: home, Token: hex.EncodeToString(b), undo: map[string]undoRecord{}}
 }

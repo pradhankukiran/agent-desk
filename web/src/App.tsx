@@ -34,7 +34,7 @@ export default function App() {
   const [reload, setReload] = useState(0);
   const [opened, setOpened] = useState<OpenFile>();
   const [draft, setDraft] = useState("");
-  const [previous, setPrevious] = useState<string>();
+  const [undoReview, setUndoReview] = useState(false);
   const [review, setReview] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const fileRequest = useRef(0);
@@ -123,6 +123,7 @@ export default function App() {
     fileRequest.current++;
     setOpened(undefined);
     setReview(false);
+    setUndoReview(false);
     setFileLoading(false);
   }
   function navigate(id: string) {
@@ -141,17 +142,21 @@ export default function App() {
     setOpened(undefined);
     setError("");
     try {
-      const d = await api<OpenFile>("file?" + query({ id, project }));
-      if (req === fileRequest.current) {
-        setOpened(d);
-        setDraft(d.content);
-        setPrevious(undefined);
-        setReview(false);
-      }
+      await loadFile(id, req);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       if (req === fileRequest.current) setFileLoading(false);
+    }
+  }
+  // loadFile shows the latest copy of a file, including whether undo is available.
+  async function loadFile(id: string, req = ++fileRequest.current) {
+    const d = await api<OpenFile>("file?" + query({ id, project }));
+    if (req === fileRequest.current) {
+      setOpened(d);
+      setDraft(d.content);
+      setReview(false);
+      setUndoReview(false);
     }
   }
   async function save(content = draft) {
@@ -166,20 +171,39 @@ export default function App() {
           body: JSON.stringify({ content, revision: opened.revision }),
         },
       );
-      setPrevious(opened.content);
-      setOpened({
-        ...opened,
-        content,
-        revision: d.revision,
-        file: { ...opened.file, exists: true },
-      });
-      setDraft(content);
-      setReview(false);
+      await loadFile(opened.file.id);
       setNotice(
         d.backup
           ? "Saved. A backup of the previous file is available in ~/.local/state/agent-desk/backups."
           : "File created.",
       );
+      setReload((v) => v + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function undo() {
+    if (!opened) return;
+    setBusy(true);
+    setError("");
+    try {
+      const d = await api<{ removed: boolean }>(
+        "undo?" + query({ id: opened.file.id, project }),
+        { method: "POST", body: JSON.stringify({ revision: opened.revision }) },
+      );
+      if (d.removed) {
+        fileRequest.current++;
+        setOpened(undefined);
+        setUndoReview(false);
+        setNotice("Undone. The file created by the last save was removed.");
+      } else {
+        await loadFile(opened.file.id);
+        setNotice(
+          "Undone. The file is back to how it was before the last save.",
+        );
+      }
       setReload((v) => v + 1);
     } catch (e) {
       setError((e as Error).message);
@@ -833,7 +857,22 @@ export default function App() {
                     settings. Edit only the fields you intend to change.
                   </div>
                 )}
-                {review ? (
+                {undoReview && opened.undo ? (
+                  <div className="review-grid">
+                    <div>
+                      <h3>Current file</h3>
+                      <pre>{opened.content}</pre>
+                    </div>
+                    <div>
+                      <h3>After undo</h3>
+                      <pre>
+                        {opened.undo.removes
+                          ? "(The file will be removed, because the last save created it.)"
+                          : opened.undo.content || "(Empty file)"}
+                      </pre>
+                    </div>
+                  </div>
+                ) : review ? (
                   <div className="review-grid">
                     <div>
                       <h3>Current file</h3>
@@ -877,20 +916,36 @@ export default function App() {
                             : "Remove file"}
                         </button>
                       )}
-                    {previous !== undefined && (
+                    {opened.undo && !review && !undoReview && (
                       <button
                         className="button secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          setDraft(previous);
-                          setReview(true);
-                        }}
+                        disabled={busy || dirty}
+                        title={dirty ? "Save or discard your edits first" : ""}
+                        onClick={() => setUndoReview(true)}
                       >
                         Undo last save
                       </button>
                     )}
                   </div>
                   <div>
+                    {undoReview && (
+                      <>
+                        <button
+                          className="button secondary"
+                          disabled={busy}
+                          onClick={() => setUndoReview(false)}
+                        >
+                          Back to editing
+                        </button>
+                        <button
+                          className="button primary"
+                          disabled={busy}
+                          onClick={undo}
+                        >
+                          {busy ? "Undoing…" : "Confirm undo"}
+                        </button>
+                      </>
+                    )}
                     {review && (
                       <button
                         className="button secondary"
@@ -900,7 +955,7 @@ export default function App() {
                         Back to editing
                       </button>
                     )}
-                    {opened.file.editable && (
+                    {opened.file.editable && !undoReview && (
                       <button
                         className="button primary"
                         disabled={!dirty || busy}

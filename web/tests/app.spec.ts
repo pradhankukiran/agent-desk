@@ -139,6 +139,22 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   expect(
     readdirSync(join(home, ".local/state/agent-desk/backups")).length,
   ).toBe(1);
+  // Undo is still offered after closing and reopening the file.
+  await page.getByRole("button", { name: "Close editor" }).click();
+  await page
+    .locator(".file-row")
+    .filter({ hasText: ".codex/AGENTS.md" })
+    .click();
+  await page.getByRole("button", { name: "Undo last save" }).click();
+  await expect(page.getByRole("heading", { name: "After undo" })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm undo" }).click();
+  await expect(page.getByRole("status")).toContainText("Undone.");
+  expect(readFileSync(join(home, ".codex/AGENTS.md"), "utf8")).toContain(
+    "Keep changes focused",
+  );
+  await expect(
+    page.getByRole("button", { name: "Undo last save" }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Close editor" }).click();
   await page.getByRole("tab", { name: "Extensions" }).click();
   await page.getByRole("button", { name: "New skill" }).click();
@@ -179,6 +195,28 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await page.getByLabel("Find in conversation").fill("looks ready");
   await expect(page.locator("article.message")).toHaveCount(1);
   expect(errors).toEqual([]);
+});
+test("undo removes a file created by the last save, even after a reload", async ({
+  page,
+}) => {
+  await page.goto(link);
+  await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
+  await page.getByRole("tab", { name: "Instructions" }).click();
+  const row = page.locator(".file-row").filter({ hasText: ".grok/AGENTS.md" });
+  await row.click();
+  await page.locator(".cm-content").fill("# Grok notes\n");
+  await page.getByRole("button", { name: "Review changes" }).click();
+  await page.getByRole("button", { name: "Confirm save" }).click();
+  await expect(page.getByRole("status")).toContainText("File created.");
+  await page.reload();
+  await page.locator(".agent-nav").filter({ hasText: "Grok" }).click();
+  await page.getByRole("tab", { name: "Instructions" }).click();
+  await row.click();
+  await page.getByRole("button", { name: "Undo last save" }).click();
+  await expect(page.getByText("The file will be removed")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm undo" }).click();
+  await expect(page.getByRole("status")).toContainText("was removed");
+  expect(existsSync(join(home, ".grok/AGENTS.md"))).toBe(false);
 });
 test("invalid configuration and stale revisions cannot overwrite files", async ({
   page,

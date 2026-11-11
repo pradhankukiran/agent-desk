@@ -33,6 +33,7 @@ export type OpenFile = {
   revision: string;
   skillFiles?: number;
   skillProblem?: string;
+  undo?: { content: string; removes: boolean };
 };
 export type Session = {
   id: string;

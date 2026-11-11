@@ -80,7 +80,15 @@ func (s *Server) backupDir() (string, error) {
 
 func stamp() string { return time.Now().UTC().Format("20060102T150405.000000000") }
 
+// save validates content, backs up the current file, and replaces or removes
+// it if its revision still matches expected.
 func (s *Server) save(f File, content []byte, expected string, remove bool) (string, error) {
+	return s.write(f, content, expected, remove, true)
+}
+
+// write is save with optional validation; restores skip it so the original
+// content always comes back as it was.
+func (s *Server) write(f File, content []byte, expected string, remove, validate bool) (string, error) {
 	if !f.Editable {
 		return "", fmt.Errorf("this file is read-only")
 	}
@@ -98,12 +106,12 @@ func (s *Server) save(f File, content []byte, expected string, remove bool) (str
 	if revision(f.Path, old) != expected {
 		return "", errConflict
 	}
-	if !remove && f.Kind == "config" {
+	if validate && !remove && f.Kind == "config" {
 		if _, e := parseConfig(f.Path, content); e != nil {
 			return "", fmt.Errorf("invalid configuration: %w", e)
 		}
 	}
-	if !remove && f.Kind == "skill" && (!strings.HasPrefix(string(content), "---\n") || !strings.Contains(string(content), "description:")) {
+	if validate && !remove && f.Kind == "skill" && (!strings.HasPrefix(string(content), "---\n") || !strings.Contains(string(content), "description:")) {
 		return "", fmt.Errorf("skills need YAML frontmatter with a description")
 	}
 	mode := fs.FileMode(0600)

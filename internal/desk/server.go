@@ -65,6 +65,11 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			return
 		}
 		out := map[string]any{"file": f, "content": string(b), "revision": revision(f.Path, b)}
+		s.mu.Lock()
+		if rec, ok := s.undoFor(f.Path); ok {
+			out["undo"] = map[string]any{"content": string(rec.previous), "removes": !rec.existed}
+		}
+		s.mu.Unlock()
 		if f.Kind == "skill" && f.Exists && f.Editable {
 			if _, n, e := s.skillFolder(f, p); e != nil {
 				out["skillProblem"] = e.Error()
@@ -87,10 +92,15 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
+		rec, remembered := s.remember(f.Path, body.Revision)
 		backup, e := s.save(f, []byte(body.Content), body.Revision, false)
 		if e != nil {
 			failure(w, e)
 			return
+		}
+		if remembered {
+			rec.after = digest([]byte(body.Content))
+			s.undo[f.Path] = rec
 		}
 		reply(w, 200, map[string]string{"revision": digest([]byte(body.Content)), "backup": backup})
 	})
@@ -121,7 +131,28 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
+		delete(s.undo, f.Path)
 		reply(w, 200, map[string]string{"backup": backup})
+	})
+	mux.HandleFunc("POST /api/undo", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		f, _, e := s.requestFile(r)
+		if e != nil {
+			failure(w, e)
+			return
+		}
+		var body struct{ Revision string }
+		if e = decode(w, r, &body); e != nil {
+			failure(w, e)
+			return
+		}
+		removed, e := s.restore(f, body.Revision)
+		if e != nil {
+			failure(w, e)
+			return
+		}
+		reply(w, 200, map[string]bool{"removed": removed})
 	})
 	mux.HandleFunc("POST /api/skill", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -160,11 +191,13 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, fmt.Errorf("skill already exists"))
 			return
 		}
+		newDir := skillDirIsNew(path)
 		_, e = s.save(f, []byte(body.Content), "missing", false)
 		if e != nil {
 			failure(w, e)
 			return
 		}
+		s.undo[path] = undoRecord{after: digest([]byte(body.Content)), newDir: newDir}
 		reply(w, 201, map[string]string{"id": fileID(path)})
 	})
 	mux.HandleFunc("GET /api/sessions", s.sessionsHandler)
