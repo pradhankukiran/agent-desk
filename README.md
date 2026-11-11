@@ -138,7 +138,9 @@ Backups are private JSON files stored under:
 ~/.local/state/agent-desk/backups/
 ```
 
-Each backup records the original `path`, `content`, and save time. **Undo last save** places the previous content into the review flow while the editor remains open. Older backups can be restored manually using their recorded path and content.
+Each file backup records the original `path`, `content`, and save time. Removing a skill copies its whole folder here. **Undo last save** shows the previous content for review and remains available until the file changes elsewhere or Agent Desk restarts. Older backups can be restored manually using their recorded path and content.
+
+For each file, Agent Desk keeps its 20 newest backups and every backup from the last 30 days. Older backups beyond that are deleted when a new backup is made.
 
 Backups may contain sensitive values. Revision checks reduce accidental overwrites, but they are not a locking protocol shared with running agent processes. Validation checks syntax, not every agent-specific setting or its operational effect.
 

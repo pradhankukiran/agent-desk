@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -107,6 +108,7 @@ func (s *Server) removeSkill(f File, project, expected string) (string, error) {
 		os.RemoveAll(backup)
 		return "", fmt.Errorf("could not back up the skill folder: %w", e)
 	}
+	pruneBackups(root, time.Now())
 	return backup, os.RemoveAll(dir)
 }
 

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -78,7 +79,51 @@ func (s *Server) backupDir() (string, error) {
 	return dir, os.MkdirAll(dir, 0700)
 }
 
-func stamp() string { return time.Now().UTC().Format("20060102T150405.000000000") }
+const stampLayout = "20060102T150405.000000000"
+
+func stamp() string { return time.Now().UTC().Format(stampLayout) }
+
+// Backups are kept if they are among the newest keepBackups for their file,
+// or younger than keepBackupDays.
+const (
+	keepBackups    = 20
+	keepBackupDays = 30
+)
+
+// pruneBackups deletes old backups. Backup names start with a timestamp and
+// the source file's ID; names that do not match are left alone.
+func pruneBackups(dir string, now time.Time) {
+	entries, e := os.ReadDir(dir)
+	if e != nil {
+		return
+	}
+	type backup struct {
+		name string
+		at   time.Time
+	}
+	byFile := map[string][]backup{}
+	for _, entry := range entries {
+		n := entry.Name()
+		if len(n) < len(stampLayout)+1+24 || n[len(stampLayout)] != '-' {
+			continue
+		}
+		at, e := time.Parse(stampLayout, n[:len(stampLayout)])
+		if e != nil {
+			continue
+		}
+		id := n[len(stampLayout)+1 : len(stampLayout)+25]
+		byFile[id] = append(byFile[id], backup{n, at})
+	}
+	cutoff := now.Add(-keepBackupDays * 24 * time.Hour)
+	for _, list := range byFile {
+		sort.Slice(list, func(i, j int) bool { return list[i].at.After(list[j].at) })
+		for i, b := range list {
+			if i >= keepBackups && b.at.Before(cutoff) {
+				os.RemoveAll(filepath.Join(dir, b.name))
+			}
+		}
+	}
+}
 
 // save validates content, backs up the current file, and replaces or removes
 // it if its revision still matches expected.
@@ -133,6 +178,7 @@ func (s *Server) write(f File, content []byte, expected string, remove, validate
 		if e = os.WriteFile(backup, data, 0600); e != nil {
 			return "", e
 		}
+		pruneBackups(dir, time.Now())
 	}
 	if remove {
 		if !exists {
