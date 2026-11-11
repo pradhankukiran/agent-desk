@@ -107,9 +107,7 @@ func (s *Server) transcript(item Session) (Transcript, error) {
 			t.Truncated = info.Size() > 64<<20
 		}
 		skipped, e := scanLines(item.Path, 64<<20, func(d map[string]any) bool {
-			if m, ok := normalize(item.Agent, d); ok {
-				t.Messages = append(t.Messages, m)
-			}
+			t.Messages = append(t.Messages, normalize(item.Agent, d)...)
 			return true
 		})
 		t.Note = "Conversation messages. Tool events and system instructions are omitted."
@@ -175,13 +173,11 @@ func (s *Server) transcript(item Session) (Transcript, error) {
 			if json.Unmarshal([]byte(raw), &d) != nil {
 				continue
 			}
-			text := str(d["text"])
+			text, thinking := str(d["text"]), ""
 			if text == "" {
-				text = textContent(d["content"])
+				text, thinking = splitContent(d["content"])
 			}
-			if text != "" {
-				t.Messages = append(t.Messages, Message{Role: role, Text: text})
-			}
+			t.Messages = append(t.Messages, messages(role, text, thinking, "")...)
 		}
 		return t, rows.Err()
 	}
@@ -205,11 +201,15 @@ func (s *Server) transcript(item Session) (Transcript, error) {
 			continue
 		}
 		role := str(d["role"])
-		if last == id && len(t.Messages) > 0 {
+		if str(p["type"]) == "reasoning" {
+			role = "thinking"
+		}
+		// Join consecutive parts of the same message and role into one message.
+		if key := id + "\x00" + role; last == key && len(t.Messages) > 0 {
 			t.Messages[len(t.Messages)-1].Text += "\n\n" + text
 		} else {
 			t.Messages = append(t.Messages, Message{Role: role, Text: text})
-			last = id
+			last = key
 		}
 	}
 	t.Note = "Conversation text. Tool events and attachments are omitted."

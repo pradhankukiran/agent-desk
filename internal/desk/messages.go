@@ -8,52 +8,73 @@ func str(v any) string { s, _ := v.(string); return s }
 
 func obj(v any) map[string]any { m, _ := v.(map[string]any); return m }
 
-func textContent(v any) string {
+// splitContent returns the reply text and the model's thinking text from a
+// message body, which is either a string or a list of typed blocks.
+func splitContent(v any) (text, thinking string) {
 	switch c := v.(type) {
 	case string:
-		return c
+		return c, ""
 	case []any:
-		parts := []string{}
+		var parts, thoughts []string
 		for _, v := range c {
 			m := obj(v)
-			kind := str(m["type"])
-			if kind == "text" || kind == "input_text" || kind == "output_text" || kind == "reasoning" || kind == "thinking" {
-				t := str(m["text"])
+			switch str(m["type"]) {
+			case "text", "input_text", "output_text":
+				if t := str(m["text"]); t != "" {
+					parts = append(parts, t)
+				}
+			case "reasoning", "thinking":
+				t := str(m["thinking"])
 				if t == "" {
-					t = str(m["thinking"])
+					t = str(m["text"])
 				}
 				if t != "" {
-					parts = append(parts, t)
+					thoughts = append(thoughts, t)
 				}
 			}
 		}
-		return strings.Join(parts, "\n\n")
+		return strings.Join(parts, "\n\n"), strings.Join(thoughts, "\n\n")
 	}
-	return ""
+	return "", ""
 }
 
-func normalize(agent string, d map[string]any) (Message, bool) {
-	m := Message{Time: str(d["timestamp"])}
+// messages builds the visible messages for one entry: thinking, then the reply.
+func messages(role, text, thinking, time string) []Message {
+	out := []Message{}
+	if thinking != "" {
+		out = append(out, Message{Role: "thinking", Text: thinking, Time: time})
+	}
+	if text != "" {
+		out = append(out, Message{Role: role, Text: text, Time: time})
+	}
+	return out
+}
+
+// normalize extracts user and assistant messages from one JSONL entry.
+func normalize(agent string, d map[string]any) []Message {
+	var role string
+	var body any
 	switch agent {
 	case "codex":
-		if str(d["type"]) != "response_item" {
-			return m, false
-		}
 		p := obj(d["payload"])
-		if str(p["type"]) != "message" {
-			return m, false
+		if str(d["type"]) != "response_item" || str(p["type"]) != "message" {
+			return nil
 		}
-		m.Role = str(p["role"])
-		m.Text = textContent(p["content"])
+		role, body = str(p["role"]), p["content"]
 	case "claude":
 		p := obj(d["message"])
-		m.Role = str(p["role"])
-		m.Text = textContent(p["content"])
+		role, body = str(p["role"]), p["content"]
 	case "grok":
-		m.Role = str(d["type"])
-		m.Text = textContent(d["content"])
+		role, body = str(d["type"]), d["content"]
 	}
-	return m, (m.Role == "user" || m.Role == "assistant") && m.Text != ""
+	if role != "user" && role != "assistant" {
+		return nil
+	}
+	text, thinking := splitContent(body)
+	if role == "user" {
+		thinking = ""
+	}
+	return messages(role, text, thinking, str(d["timestamp"]))
 }
 
 func short(s string, n int) string {

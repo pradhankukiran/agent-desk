@@ -810,6 +810,31 @@ dd:last-child {
 .message.assistant {
   background: #fff;
 }
+.message.thinking {
+  background: #f3f5ef;
+  border-style: dashed;
+  padding-block: 12px;
+}
+.message.thinking summary {
+  cursor: pointer;
+  list-style: none;
+  margin-bottom: 0;
+}
+.message.thinking summary::-webkit-details-marker {
+  display: none;
+}
+.message.thinking summary span::before {
+  content: "▸ ";
+}
+.message.thinking[open] summary {
+  margin-bottom: 12px;
+}
+.message.thinking[open] summary span::before {
+  content: "▾ ";
+}
+.message.thinking pre {
+  color: #7d8a72;
+}
 .message-role {
   text-transform: uppercase;
   font-size: 9px;

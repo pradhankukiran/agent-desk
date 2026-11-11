@@ -106,8 +106,10 @@ func (s *Server) fileSessions(agent string) ([]Session, []string) {
 			if cwd := str(d["cwd"]); cwd != "" {
 				item.Project = cwd
 			}
-			if m, ok := normalize(agent, d); ok && m.Role == "user" && item.Title == base && !strings.HasPrefix(m.Text, "# AGENTS.md") && !strings.HasPrefix(m.Text, "<") {
-				item.Title = short(m.Text, 120)
+			for _, m := range normalize(agent, d) {
+				if m.Role == "user" && item.Title == base && !strings.HasPrefix(m.Text, "# AGENTS.md") && !strings.HasPrefix(m.Text, "<") {
+					item.Title = short(m.Text, 120)
+				}
 			}
 			return count < 150
 		})

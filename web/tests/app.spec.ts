@@ -53,6 +53,7 @@ test.beforeAll(async () => {
           type: "message",
           role: "assistant",
           content: [
+            { type: "reasoning", text: "Checking the build first." },
             { type: "output_text", text: "The application looks ready." },
           ],
         },
@@ -158,6 +159,11 @@ test("browse agents, review and save instructions, create a skill, read a sessio
   await expect(
     page.getByText("The application looks ready.", { exact: true }),
   ).toBeVisible();
+  const thinking = page.locator("details.message.thinking");
+  await expect(thinking).toHaveCount(1);
+  await expect(page.getByText("Checking the build first.")).toBeHidden();
+  await thinking.locator("summary").click();
+  await expect(page.getByText("Checking the build first.")).toBeVisible();
   await page.getByLabel("Find in conversation").fill("looks ready");
   await expect(page.locator("article.message")).toHaveCount(1);
   expect(errors).toEqual([]);

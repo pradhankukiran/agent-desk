@@ -711,30 +711,49 @@ export default function App() {
                                 .toLowerCase()
                                 .includes(transcriptSearch.toLowerCase()),
                             )
-                            .map((m, i) => (
-                              <article className={"message " + m.role} key={i}>
-                                <div className="message-role">
-                                  {m.role}
-                                  <button
-                                    onClick={() =>
-                                      navigator.clipboard
-                                        .writeText(m.text)
-                                        .then(() =>
-                                          setNotice("Message copied."),
-                                        )
-                                        .catch(() =>
-                                          setError(
-                                            "Clipboard access is unavailable.",
-                                          ),
-                                        )
-                                    }
-                                  >
-                                    Copy
-                                  </button>
-                                </div>
-                                <pre>{m.text}</pre>
-                              </article>
-                            ))}
+                            .map((m, i) => {
+                              const copy = (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    navigator.clipboard
+                                      .writeText(m.text)
+                                      .then(() => setNotice("Message copied."))
+                                      .catch(() =>
+                                        setError(
+                                          "Clipboard access is unavailable.",
+                                        ),
+                                      );
+                                  }}
+                                >
+                                  Copy
+                                </button>
+                              );
+                              return m.role === "thinking" ? (
+                                <details
+                                  className="message thinking"
+                                  key={i}
+                                  open={transcriptSearch !== ""}
+                                >
+                                  <summary className="message-role">
+                                    <span>Thinking</span>
+                                    {copy}
+                                  </summary>
+                                  <pre>{m.text}</pre>
+                                </details>
+                              ) : (
+                                <article
+                                  className={"message " + m.role}
+                                  key={i}
+                                >
+                                  <div className="message-role">
+                                    {m.role}
+                                    {copy}
+                                  </div>
+                                  <pre>{m.text}</pre>
+                                </article>
+                              );
+                            })}
                         </>
                       )}
                     </>
