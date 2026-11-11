@@ -65,3 +65,20 @@ func TestLookupReusesCatalog(t *testing.T) {
 		t.Fatalf("want 3 scans, got %d", n)
 	}
 }
+
+func TestPluginNameFromManifest(t *testing.T) {
+	s := fixture(t)
+	put(t, filepath.Join(s.Home, ".claude/plugins/cache/2da0c8d9/.claude-plugin/plugin.json"), `{"name":"engineering"}`)
+	put(t, filepath.Join(s.Home, ".claude/plugins/cache/unnamed/.claude-plugin/plugin.json"), `{}`)
+	names := map[string]bool{}
+	for _, a := range s.Catalog("") {
+		for _, x := range a.Extensions {
+			if x.Kind == "plugin" {
+				names[x.Name] = true
+			}
+		}
+	}
+	if !names["engineering"] || !names["unnamed"] || names["2da0c8d9"] {
+		t.Fatalf("plugin names: %v", names)
+	}
+}

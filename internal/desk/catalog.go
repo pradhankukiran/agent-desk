@@ -1,6 +1,7 @@
 package desk
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -30,6 +31,15 @@ func (s *Server) Catalog(project string) []Agent {
 					name = filepath.Base(filepath.Dir(path))
 					if strings.HasPrefix(name, ".") {
 						name = filepath.Base(filepath.Dir(filepath.Dir(path)))
+					}
+				}
+				if f.Name == "plugin.json" {
+					// Installed plugins sit in folders named by ID; use the declared name.
+					if b, e := readSmall(path); e == nil {
+						var meta struct{ Name string }
+						if json.Unmarshal(b, &meta) == nil && strings.TrimSpace(meta.Name) != "" {
+							name = strings.TrimSpace(meta.Name)
+						}
 					}
 				}
 				a.Extensions = append(a.Extensions, Extension{Name: name, Kind: kind, Status: "present", Scope: scope, FileID: f.ID, Source: path})
