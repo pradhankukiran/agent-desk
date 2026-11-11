@@ -1,0 +1,202 @@
+import { test, expect } from "@playwright/test";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  readdirSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { spawn, ChildProcess } from "node:child_process";
+let home: string, link: string, server: ChildProcess;
+function file(path: string, content: string) {
+  const full = join(home, path);
+  mkdirSync(resolve(full, ".."), { recursive: true });
+  writeFileSync(full, content);
+}
+test.beforeAll(async () => {
+  home = mkdtempSync(join(tmpdir(), "agent-desk-e2e-"));
+  file(
+    ".codex/config.toml",
+    'model = "demo"\n[mcp_servers.docs]\nurl = "https://example.test/mcp"\n',
+  );
+  file(".codex/AGENTS.md", "# Instructions\n\nKeep changes focused.\n");
+  file(
+    ".agents/skills/review/SKILL.md",
+    "---\nname: review\ndescription: Review changes\n---\n\nReview the diff.\n",
+  );
+  file(".claude/settings.json", "{}");
+  file(".grok/config.toml", "");
+  file(".config/opencode/opencode.json", "{}");
+  file(".gemini/antigravity-cli/settings.json", "{}");
+  file(
+    ".codex/sessions/2026/01/01/demo.jsonl",
+    JSON.stringify({
+      type: "session_meta",
+      payload: { id: "demo", cwd: home },
+    }) +
+      "\n" +
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Review the application" }],
+        },
+      }) +
+      "\n" +
+      JSON.stringify({
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [
+            { type: "output_text", text: "The application looks ready." },
+          ],
+        },
+      }) +
+      "\n",
+  );
+  server = spawn(resolve("../bin/agent-desk"), [
+    "--home",
+    home,
+    "--port",
+    "0",
+    "--no-open",
+  ]);
+  link = await new Promise<string>((ok, no) => {
+    let data = "";
+    const timeout = setTimeout(
+      () => no(new Error("Server startup timeout")),
+      10000,
+    );
+    server.stdout!.on("data", (chunk) => {
+      data += chunk.toString();
+      const match = data.match(/http:\/\/localhost:\d+\/#token=[a-f0-9]+/);
+      if (match) {
+        clearTimeout(timeout);
+        ok(match[0]);
+      }
+    });
+    server.on("error", no);
+    server.on("exit", (code) => {
+      clearTimeout(timeout);
+      no(new Error("Server exited " + code));
+    });
+  });
+});
+test.afterAll(async () => {
+  if (server && server.exitCode === null) {
+    server.kill();
+    await new Promise((r) => server.once("exit", r));
+  }
+  if (home) rmSync(home, { recursive: true, force: true });
+});
+test("browse agents, review and save instructions, create a skill, read a session", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
+  await page.screenshot({ path: "test-results/overview.png", fullPage: true });
+  for (const name of ["Claude Code", "OpenCode", "Grok", "Agy", "Codex"]) {
+    await page.locator(".agent-nav").filter({ hasText: name }).click();
+    await expect(
+      page.getByRole("heading", { name, level: 1 }),
+    ).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "Extensions" }).click();
+  await expect(
+    page.getByRole("heading", { name: "docs", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "review", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Instructions" }).click();
+  await page
+    .locator(".file-row")
+    .filter({ hasText: ".codex/AGENTS.md" })
+    .click();
+  await page
+    .locator(".cm-content")
+    .fill("# Updated instructions\n\nRun the focused checks.\n");
+  await page.getByRole("button", { name: "Review changes" }).click();
+  expect(readFileSync(join(home, ".codex/AGENTS.md"), "utf8")).toContain(
+    "Keep changes focused",
+  );
+  await page.getByRole("button", { name: "Confirm save" }).click();
+  await expect(
+    page.getByRole("button", { name: "Undo last save" }),
+  ).toBeVisible();
+  expect(readFileSync(join(home, ".codex/AGENTS.md"), "utf8")).toContain(
+    "Run the focused checks",
+  );
+  expect(
+    readdirSync(join(home, ".local/state/agent-desk/backups")).length,
+  ).toBe(1);
+  await page.getByRole("button", { name: "Close editor" }).click();
+  await page.getByRole("tab", { name: "Extensions" }).click();
+  await page.getByRole("button", { name: "New skill" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("check-work");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("Use when checking a change");
+  await page.getByRole("button", { name: "Create and edit" }).click();
+  await expect(page.getByRole("dialog", { name: "File editor" })).toBeVisible();
+  expect(
+    readFileSync(join(home, ".codex/skills/check-work/SKILL.md"), "utf8"),
+  ).toContain("Use when checking a change");
+  await page.getByRole("button", { name: "Close editor" }).click();
+  await page.getByRole("tab", { name: "Sessions" }).click();
+  await page
+    .locator(".session-row")
+    .filter({ hasText: "Review the application" })
+    .click();
+  await expect(
+    page.getByText("The application looks ready.", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Find in conversation").fill("looks ready");
+  await expect(page.locator("article.message")).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+test("invalid configuration and stale revisions cannot overwrite files", async ({
+  page,
+}) => {
+  await page.goto(link);
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.locator(".file-row").filter({ hasText: "config.toml" }).click();
+  await page.locator(".cm-content").fill("model = [");
+  await page.getByRole("button", { name: "Review changes" }).click();
+  await page.getByRole("button", { name: "Confirm save" }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "invalid configuration",
+  );
+  expect(readFileSync(join(home, ".codex/config.toml"), "utf8")).toContain(
+    'model = "demo"',
+  );
+  await page.getByRole("button", { name: "Back to editing" }).click();
+  await page.locator(".cm-content").fill('model = "changed"\n');
+  writeFileSync(join(home, ".codex/config.toml"), 'model = "external"\n');
+  await page.getByRole("button", { name: "Review changes" }).click();
+  await page.getByRole("button", { name: "Confirm save" }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "file changed",
+  );
+  expect(readFileSync(join(home, ".codex/config.toml"), "utf8")).toContain(
+    "external",
+  );
+});
+test("small screens keep navigation and content accessible", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "test-results/mobile.png", fullPage: true });
+});
