@@ -40,14 +40,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 			failure(w, e)
 			return
 		}
-		projects := []string{s.Home}
-		entries, _ := os.ReadDir(filepath.Join(s.Home, "projects"))
-		for _, x := range entries {
-			if x.IsDir() {
-				projects = append(projects, filepath.Join(s.Home, "projects", x.Name()))
-			}
-		}
-		reply(w, 200, map[string]any{"agents": s.Catalog(p), "projects": projects, "home": s.Home})
+		reply(w, 200, map[string]any{"agents": s.Catalog(p), "projects": s.projects(), "home": s.Home})
 	})
 	mux.HandleFunc("GET /api/file", func(w http.ResponseWriter, r *http.Request) {
 		f, p, e := s.requestFile(r)
